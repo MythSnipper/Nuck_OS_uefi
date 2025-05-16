@@ -1,0 +1,106 @@
+.PHONY: build src mnt gnu-efi keys ovmf shim
+
+DEVICE ?= /dev/sda
+DEVICE_PART ?= $(DEVICE)1
+
+CC = gcc
+LD = ld
+OCP = objcopy
+CFLAGS = \
+-m64 \
+-fpic \
+-ffreestanding \
+-fno-stack-protector \
+-fno-stack-check \
+-fshort-wchar \
+-mno-red-zone \
+-maccumulate-outgoing-args \
+-I gnu-efi/inc \
+-I gnu-efi/inc/x86_64 \
+-Wall
+
+LDFLAGS = \
+gnu-efi/x86_64/gnuefi/crt0-efi-x86_64.o \
+-T gnu-efi/gnuefi/elf_x86_64_efi.lds \
+-shared \
+-Bsymbolic \
+-nostdlib \
+-znocombreloc \
+-L gnu-efi/x86_64/lib \
+-L gnu-efi/x86_64/gnuefi \
+-lgnuefi \
+-lefi
+
+OCPFLAGS = -j .text -j .sdata -j .data -j .rodata -j .dynamic -j .dynsym -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc \
+--target=efi-app-x86_64 \
+--subsystem=10
+
+build:
+	mkdir -p build/root/EFI/BOOT/
+
+	$(CC) $(CFLAGS) -c src/main.c -o build/main.o
+	$(LD) $(LDFLAGS) build/main.o -o build/main.so 
+
+	$(OCP) $(OCPFLAGS) build/main.so build/main.efi
+	#objcopy --add-section .sbat=src/sbat.csv --set-section-flags .sbat=contents,alloc,load,readonly,data build/main.efi build/main.efi
+
+	cp build/main.efi build/root/EFI/BOOT/BOOTX64.EFI
+
+	#sign Nuck OS with key
+	#sbsign --key keys/MOK.key --cert keys/MOK.crt --output build/main-signed.efi build/main.efi
+	#cp build/main-signed.efi build/root/EFI/BOOT/GRUBX64.EFI
+
+	#cert-to-efi-sig-list keys/MOK.crt keys/MOK.esl
+	#sign-efi-sig-list -k keys/MOK.key -c keys/MOK.crt "Nuck OS key" keys/MOK.esl keys/MOK.auth
+
+	#copy shim files
+	#cp shim/shimx64.efi build/root/EFI/BOOT/BOOTX64.EFI
+	#cp shim/mmx64.efi build/root/EFI/BOOT/
+
+	#place signature
+	#cp keys/* build/root/
+
+
+fixdisk:
+	#GPT table and create partition
+	echo -e "g\nY\nn\n\n\n\nY\nt\n1\nw\n" | sudo fdisk $(DEVICE)
+	sleep 3
+	#format to FAT32 EFI System
+	sudo mkfs.vfat -F 32 -n "EFI System" -s 16 -v $(DEVICE_PART)
+
+re-sign:
+	sudo rm keys/*
+	openssl req -new -x509 -newkey rsa:2048 -keyout keys/MOK.key -out keys/MOK.crt -nodes -days 7300 -subj "/CN=Nuck OS key/"
+
+	openssl x509  -outform DER -in keys/MOK.crt -out keys/MOK.cer
+
+cp:
+	lsblk
+
+	sudo mount $(DEVICE_PART) mnt/
+	sudo rm -rf mnt/*
+	sudo cp -r build/root/* mnt/
+
+	sudo tree mnt/
+	sudo umount $(DEVICE_PART)
+
+	sudo sync
+
+
+qemu:
+	#sudo qemu-system-x86_64 -bios /usr/share/ovmf/x64/OVMF.4m.fd -drive format=raw,file=$(DEVICE)
+	sudo qemu-system-x86_64 \
+	-cpu host \
+	-enable-kvm \
+	-m 2048 \
+	-net none \
+	-drive if=pflash,format=raw,unit=0,file=ovmf/edk2.git/ovmf-x64/OVMF_CODE-pure-efi.fd,readonly=on \
+	-drive if=pflash,format=raw,unit=1,file=ovmf/edk2.git/ovmf-x64/OVMF_VARS-pure-efi.fd \
+	-usb -device usb-storage,drive=nuckusb \
+    -drive file=$(DEVICE),if=none,format=raw,id=nuckusb
+
+clean:
+	sudo rm -rf build/*
+
+
+
