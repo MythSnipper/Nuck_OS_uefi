@@ -4,57 +4,46 @@
 
 
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable){
-    InitializeLib(ImageHandle, SystemTable);
+    EFI_INPUT_KEY key;
+    EFI_STATUS status;
+    EFI_SYSTEM_TABLE* ST = SystemTable;
 
+    InitializeLib(ImageHandle, ST);
 
+    //sets background to BLACK
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_BLUE, EFI_BLUE));
+    uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
 
-
-    uefi_call_wrapper(SystemTable->ConOut->SetAttribute, 2, SystemTable->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLUE));
-
-    uefi_call_wrapper(SystemTable->ConOut->ClearScreen, 1, SystemTable->ConOut);
-
-    uefi_call_wrapper(SystemTable->ConOut->SetAttribute, 2, SystemTable->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
-
+    //sets font color to light green on black
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
+    
+    //print logo
     print_logo();
     
-
-    CHAR16 buffer[] = L"Also Allen is gay\r\n";
+    //very good message
+    CHAR16 buffer[] = L"Also Allen is very, very annoying\r\n";
     uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, buffer);
 
+    //sets font color to red on white
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTRED, EFI_WHITE));
 
-    uefi_call_wrapper(SystemTable->ConOut->SetAttribute, 2, SystemTable->ConOut, EFI_TEXT_ATTR(EFI_RED, EFI_WHITE));
+    //very good message
+    CHAR16 buff[] = L"Press keystroke to shutdown...\r\n";
+    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, buff);
 
-    CHAR16 buff[] = L"Press any key to shutdown...\r\n";
-    uefi_call_wrapper(
-        ST->ConOut->OutputString, 
-        2, 
-        ST->ConOut, 
-        buff
-    );
-
-    EFI_INPUT_KEY key;
-    while(uefi_call_wrapper(SystemTable->ConIn->ReadKeyStroke,  2, SystemTable->ConIn, &key) != EFI_SUCCESS);
+    while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
 
 
     //shutdown
-    uefi_call_wrapper(SystemTable->RuntimeServices->ResetSystem, 4, EfiResetShutdown, EFI_SUCCESS, 0, NULL);
+    uefi_call_wrapper(ST->RuntimeServices->ResetSystem, 4, EfiResetShutdown, EFI_SUCCESS, 0, NULL);
 
 
     return EFI_SUCCESS;
 }
 
 void print_logo(){
-    Print(L"                                 _   _    ___\r\n");
-    Print(L"                                | | | |  / _ \\\r\n");
-    Print(L"  _   _                  _      | |_| | |  __/    ___    ____  \r\n");
-    Print(L" | \\ | |  _   _    ___  | | __   \\__,_|  \\___|   / _ \\  / ___| \r\n");
-    Print(L" |  \\| | | | | |  / __| | |/ /      __   _      | | | | \\___ \\ \r\n");
-    Print(L" | |\\  | | |_| | | (__  |   <      / _| (_)     | |_| |  ___) |\r\n");
-    Print(L" |_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |      \\___/  |____/ \r\n");
-    Print(L"                                  |  _| | |\r\n");
-    Print(L"                                  |_|   |_|\r\n");
-    Print(L"             \"operating system of the future\" (TM)\r\n");
-
+    CHAR16* oah = L"                                 _   _    ___\r\n                                | | | |  / _ \\\r\n  _   _                  _      | |_| | |  __/    ___    ____  \r\n | \\ | |  _   _    ___  | | __   \\__,_|  \\___|   / _ \\  / ___| \r\n |  \\| | | | | |  / __| | |/ /      __   _      | | | | \\___ \\ \r\n | |\\  | | |_| | | (__  |   <      / _| (_)     | |_| |  ___) |\r\n |_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |      \\___/  |____/ \r\n                                  |  _| | |\r\n                                  |_|   |_|\r\n             \"operating system of the future\" (TM)\r\n";
+    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, oah);
 }
 
 
