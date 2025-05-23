@@ -39,13 +39,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
 
     printInfo(ST);
 
-
     //sets font color to red on white
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
 
     //very good message
     uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to get memory map\r\n");
-
 
     //variables used in main logic
     UINTN MemoryMapSize = 0; //size of the memory map in bytes
@@ -53,7 +51,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     UINTN MapKey;
     UINTN DescriptorSize;
     UINT32 DescriptorVersion;
-
 
     while(true){
         //keyboard input
@@ -65,12 +62,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
             else{
                 buff[0] = key.UnicodeChar;
                 uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, buff);
-                buff[0] = (key.ScanCode / 10) % 10 + 48;
-                uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, buff);
-                buff[0] = key.ScanCode % 10 + 48;
-                uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, buff);
             }
-
             //Function keys
             switch(key.ScanCode){
                 case 0x0B:
@@ -88,9 +80,22 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
             }
         }
     }
-
     return EFI_SUCCESS;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void printMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN MemoryMapSize, EFI_MEMORY_DESCRIPTOR* MemoryMap, UINTN MapKey, UINTN DescriptorSize, UINT32 DescriptorVersion){
     EFI_INPUT_KEY key;
@@ -114,7 +119,6 @@ void printMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN MemoryMapSize, EFI_MEMORY_DESCRI
     L"EfiMaxMemoryType"
     };
 
-
     UINTN entries = MemoryMapSize / DescriptorSize;
     EFI_MEMORY_DESCRIPTOR* MM = MemoryMap;
     
@@ -123,22 +127,38 @@ void printMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN MemoryMapSize, EFI_MEMORY_DESCRI
 
     for(UINTN i = 0;i < entries;i++){
         Print(L"\r\nEntry %lu:\r\n", i+1);
-        if(MM->Type >= 0 && MM->Type < 17){ //17 elements
+        if(MM->Type < sizeof(type_arr)/sizeof(type_arr[0])){
             Print(L"Type: %s\r\n", type_arr[MM->Type]);
         }
         else{
             Print(L"Type: %u\r\n", MM->Type);
         }
-        Print(L"Physical Start: 0x%lx\r\n", MM->PhysicalStart);
+        Print(L"Physical Start: 0x%lx    ", MM->PhysicalStart);
         Print(L"Virtual Start: 0x%lx\r\n", MM->VirtualStart);
-        Print(L"Number of 4KiB pages: %lu\r\n", MM->NumberOfPages);
+        Print(L"Number of 4KiB pages: %lu   ", MM->NumberOfPages);
         Print(L"Attribute: 0x%lx\r\n", MM->Attribute);
+        if(MM->Attribute & 0x1)Print(L"UC ");
+        if(MM->Attribute & 0x2)Print(L"WC ");
+        if(MM->Attribute & 0x4)Print(L"WT ");
+        if(MM->Attribute & 0x8)Print(L"WB ");
+        if(MM->Attribute & 0x10)Print(L"UCE ");
+        if(MM->Attribute & 0x1000)Print(L"WP ");
+        if(MM->Attribute & 0x2000)Print(L"RP ");
+        if(MM->Attribute & 0x4000)Print(L"XP ");
+        if(MM->Attribute & 0x8000)Print(L"NV ");
+        if(MM->Attribute & 0x10000)Print(L"MORE_RELIABLE ");
+        if(MM->Attribute & 0x20000)Print(L"RO ");
+        if(MM->Attribute & 0x40000)Print(L"SP ");
+        if(MM->Attribute & 0x80000)Print(L"CRYPTO ");
+        if(MM->Attribute & 0x8000000000000000)Print(L"RUNTIME ");
+        if(MM->Attribute & 0x4000000000000000)Print(L"ISA_VALID ");
+        if(MM->Attribute & 0x0FFFF00000000000)Print(L"ISA_MASK ");
+        Print(L"\r\n");
         //go to next one
         MM = (EFI_MEMORY_DESCRIPTOR*)((UINT8*)MM + DescriptorSize);
         //break here
         while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
     }
-    Print(L"End-------------------------------------------------------");
 }
 
 void getMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN* MemoryMapSize, EFI_MEMORY_DESCRIPTOR** MemoryMap, UINTN* MapKey, UINTN* DescriptorSize, UINT32* DescriptorVersion){
@@ -165,7 +185,6 @@ void getMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN* MemoryMapSize, EFI_MEMORY_DESCRIP
         while(true);
     }
 }
-
 
 void printLogo(EFI_SYSTEM_TABLE* ST){
     CHAR16* oah = L"                                 _   _    ___\r\n                                | | | |  / _ \\\r\n  _   _                  _      | |_| | |  __/    ___    ____  \r\n | \\ | |  _   _    ___  | | __   \\__,_|  \\___|   / _ \\  / ___| \r\n |  \\| | | | | |  / __| | |/ /      __   _      | | | | \\___ \\ \r\n | |\\  | | |_| | | (__  |   <      / _| (_)     | |_| |  ___) |\r\n |_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |      \\___/  |____/ \r\n                                  |  _| | |\r\n                                  |_|   |_|\r\n             \"operating system of the future\" (TM)\r\n";
