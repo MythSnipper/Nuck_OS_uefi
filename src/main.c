@@ -9,23 +9,40 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     EFI_STATUS status;
 
     CHAR16 buff[2] = L"\0\0";
+
     InitializeLib(ImageHandle, ST); //initialize runtime pointers
 
+    //disable watchdog timer
+    uefi_call_wrapper(ST->BootServices->SetWatchdogTimer, 0, 0, 0x10000, 0, NULL);
+
     //simple keyboard loop to determine to reset or not to reset the display
-    Print(L"Reset display to standard VGA(80x25)(safe graphics)? (y/n):");
+    Print(L"Reset display to standard VGA(80x25)(safe graphics)? (y/n/r/s):");
     while(true){
         //keyboard input
         if(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) == EFI_SUCCESS){
             if(key.UnicodeChar == L'y'){
-                uefi_call_wrapper(ST->ConOut->Reset, 2, ST->ConOut, false);
+                status = uefi_call_wrapper(ST->ConOut->SetMode, 2, ST->ConOut, 2);
+                if(EFI_ERROR(status)){
+                    status = uefi_call_wrapper(ST->ConOut->SetMode, 2, ST->ConOut, 1);
+                }
+                if(EFI_ERROR(status)){
+                    uefi_call_wrapper(ST->ConOut->SetMode, 2, ST->ConOut, 0);
+                }
                 break;
             }
             else if(key.UnicodeChar == L'n'){
                 break;
             }
+            else if(key.UnicodeChar == L'r'){
+                uefi_call_wrapper(ST->ConOut->Reset, 2, ST->ConOut, false);
+                break;
+            }
+            else if(key.UnicodeChar == L's'){
+                uefi_call_wrapper(ST->ConOut->SetMode, 2, ST->ConOut, 0);
+                break;
+            }
         }
     }
-
 
     //clear console output, sets background color, cursor goes to 0, 0
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_CYAN, EFI_CYAN));
@@ -43,7 +60,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
 
     //very good message
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to get memory map\r\n");
+    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to run OS kernel\r\n");
 
     //variables used in main logic
     UINTN MemoryMapSize = 0; //size of the memory map in bytes
@@ -77,37 +94,38 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     getMemoryMap(ST, &MemoryMapSize, &MemoryMap, &MapKey, &DescriptorSize, &DescriptorVersion);
                     printMemoryMap(ST, MemoryMapSize, MemoryMap, MapKey, DescriptorSize, DescriptorVersion);
                     break;
+                case 0x0E:
+                    //get memory map
+                    Print(L"oah\r\n");
+                    status = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, &MemoryMapSize, MemoryMap, &MapKey, &DescriptorSize, &DescriptorVersion);
+                    uefi_call_wrapper(ST->BootServices->ExitBootServices, 2, ImageHandle, MapKey);
+                    goto exit_boot_services;
+                    break;
             }
         }
     }
+    exit_boot_services:
+
+    for(char* i=(char*)0xA0000 ;i<=0xB8000;i++){
+        *i = 0xFF;
+    }
+
+
+    while(1);
     return EFI_SUCCESS;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 void printMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN MemoryMapSize, EFI_MEMORY_DESCRIPTOR* MemoryMap, UINTN MapKey, UINTN DescriptorSize, UINT32 DescriptorVersion){
     EFI_INPUT_KEY key;
     UINT16* type_arr[] = {
     L"EfiReservedMemoryType",
-    L"EfiLoaderCode",
-    L"EfiLoaderData",
-    L"EfiBootServicesCode",
-    L"EfiBootServicesData",
+    L"EfiLoaderCode", //yes
+    L"EfiLoaderData", //for safety best to avoid - might contain memory map
+    L"EfiBootServicesCode", //yes
+    L"EfiBootServicesData", //yes
     L"EfiRuntimeServicesCode",
     L"EfiRuntimeServicesData",
-    L"EfiConventionalMemory",
+    L"EfiConventionalMemory", //yes
     L"EfiUnusableMemory",
     L"EfiACPIReclaimMemory",
     L"EfiACPIMemoryNVS",
@@ -122,21 +140,28 @@ void printMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN MemoryMapSize, EFI_MEMORY_DESCRI
     UINTN entries = MemoryMapSize / DescriptorSize;
     EFI_MEMORY_DESCRIPTOR* MM = MemoryMap;
     
+    //size of conventional memory in number of 4 KiB pages
+    UINTN totalMapped = 0;
+    UINTN totalUsable = 0;
+    UINTN totalConventional = 0;
+
     //print other info
     Print(L"\r\nMemory Map Size: %lu\r\nMap Key: %lu\r\nSize of each entry: %lu\r\nVer: %u\r\nTotal entries: %lu\r\n", MemoryMapSize, MapKey, DescriptorSize, DescriptorVersion, entries);
-
+    Print(L"----------START----------\r\n");
     for(UINTN i = 0;i < entries;i++){
-        Print(L"\r\nEntry %lu:\r\n", i+1);
+        Print(L"#%lu - ", i+1);
         if(MM->Type < sizeof(type_arr)/sizeof(type_arr[0])){
-            Print(L"Type: %s\r\n", type_arr[MM->Type]);
+            //add to mem size counters
+            totalMapped += MM->NumberOfPages;
+            if(MM->Type == EfiLoaderCode || MM->Type == EfiBootServicesCode || MM->Type == EfiBootServicesData || MM->Type == EfiConventionalMemory)totalUsable += MM->NumberOfPages;
+            if(MM->Type == EfiConventionalMemory)totalConventional += MM->NumberOfPages;
+
+            Print(L"%s ", type_arr[MM->Type]);
         }
         else{
-            Print(L"Type: %u\r\n", MM->Type);
+            Print(L"Unknown ");
         }
-        Print(L"Physical Start: 0x%lx    ", MM->PhysicalStart);
-        Print(L"Virtual Start: 0x%lx\r\n", MM->VirtualStart);
-        Print(L"Number of 4KiB pages: %lu   ", MM->NumberOfPages);
-        Print(L"Attribute: 0x%lx\r\n", MM->Attribute);
+        Print(L"Range:0x%lx - 0x%lx", MM->PhysicalStart, (MM->PhysicalStart + (MM->NumberOfPages*4096) - 1));
         if(MM->Attribute & 0x1)Print(L"UC ");
         if(MM->Attribute & 0x2)Print(L"WC ");
         if(MM->Attribute & 0x4)Print(L"WT ");
@@ -153,12 +178,18 @@ void printMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN MemoryMapSize, EFI_MEMORY_DESCRI
         if(MM->Attribute & 0x8000000000000000)Print(L"RUNTIME ");
         if(MM->Attribute & 0x4000000000000000)Print(L"ISA_VALID ");
         if(MM->Attribute & 0x0FFFF00000000000)Print(L"ISA_MASK ");
+
         Print(L"\r\n");
         //go to next one
         MM = (EFI_MEMORY_DESCRIPTOR*)((UINT8*)MM + DescriptorSize);
         //break here
         while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
     }
+    Print(L"\r\n----------END----------\r\n");
+    Print(L"Total mapped memory: %d KiB/%f MiB/%f GiB\r\n", totalMapped*4, totalMapped/256.0f, totalMapped/262144.0f);
+    Print(L"Total usable memory: %d KiB/%f MiB/%f GiB\r\n", totalUsable*4, totalUsable/256.0f, totalUsable/262144.0f);
+    Print(L"Total conventional memory: %d KiB/%f MiB/%f GiB\r\n", totalConventional*4, totalConventional/256.0f, totalConventional/262144.0f);
+
 }
 
 void getMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN* MemoryMapSize, EFI_MEMORY_DESCRIPTOR** MemoryMap, UINTN* MapKey, UINTN* DescriptorSize, UINT32* DescriptorVersion){
@@ -177,7 +208,7 @@ void getMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN* MemoryMapSize, EFI_MEMORY_DESCRIP
         Print(L"Failed to allocate pool of: (%lu + %lu) bytes for Memory Map\r\n", (*MemoryMapSize), (*DescriptorSize) * 10);
         while(true);
     }
-    *MemoryMapSize += *DescriptorSize * 10;
+    *MemoryMapSize += *DescriptorSize * 5;
     //get memory map
     status = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, MemoryMapSize, *MemoryMap, MapKey, DescriptorSize, DescriptorVersion);
     if(EFI_ERROR(status)){
@@ -187,15 +218,13 @@ void getMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN* MemoryMapSize, EFI_MEMORY_DESCRIP
 }
 
 void printLogo(EFI_SYSTEM_TABLE* ST){
-    CHAR16* oah = L"                                 _   _    ___\r\n                                | | | |  / _ \\\r\n  _   _                  _      | |_| | |  __/    ___    ____  \r\n | \\ | |  _   _    ___  | | __   \\__,_|  \\___|   / _ \\  / ___| \r\n |  \\| | | | | |  / __| | |/ /      __   _      | | | | \\___ \\ \r\n | |\\  | | |_| | | (__  |   <      / _| (_)     | |_| |  ___) |\r\n |_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |      \\___/  |____/ \r\n                                  |  _| | |\r\n                                  |_|   |_|\r\n             \"operating system of the future\" (TM)\r\n";
+    CHAR16* oslogo = L"                                _   _    ___\r\n                               | | | |  / _ \\\r\n _   _                  _      | |_| | |  __/\r\n| \\ | |  _   _    ___  | | __   \\__,_|  \\___|   / _ \\  / ___| \r\n|  \\| | | | | |  / __| | |/ /      __   _      | | | | \\___ \\ \r\n| |\\  | | |_| | | (__  |   <      / _| (_)     | |_| |  ___) |\r\n|_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |      \\___/  |____/ \r\n                                 |  _| | |                    \r\n                                 |_|   |_|                    \r\n            \"operating system of the future\" (TM)\r\n";
+    CHAR16* oah = L"                                _   _    ___\r\n                               | | | |  / _ \\\r\n _   _                  _      | |_| | |  __/   ____              _\r\n| \\ | |  _   _    ___  | | __   \\__,_|  \\___|  | __ )  ___   ___ | |\r\n|  \\| | | | | |  / __| | |/ /      __   _      |  _ \\ / _ \\ / _ \\| __| \r\n| |\\  | | |_| | | (__  |   <      / _| (_)     | |_) | (_) | (_) | |_\r\n|_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |     |____/ \\___/ \\___/ \\__|\r\n                                 |  _| | |\r\n                                 |_|   |_|\r\n\"operating system of the future\" (TM)\r\n";
     uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, oah);
 }
 
 void printInfo(EFI_SYSTEM_TABLE* ST){
-    Print(L"EFI ST conforms to UEFI revision: %d.%d\r\n", (ST->Hdr.Revision >> 16) && 0xFFFF, ST->Hdr.Revision & 0xFFFF);
-
     Print(L"Firmware Vendor: %s\r\n", ST->FirmwareVendor);
-
     Print(L"System UEFI firmware revision: %d.%d\r\n", (ST->FirmwareRevision >> 16) && 0xFFFF, ST->FirmwareRevision & 0xFFFF);
 
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_CYAN, EFI_CYAN));
