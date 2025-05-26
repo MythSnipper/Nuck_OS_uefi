@@ -12,9 +12,13 @@ IMAGE_NAME = nuck_os.iso
 CC = gcc
 LD = ld
 OCP = objcopy
+KERNEL_CC = x86_64-elf-gcc
+KERNEL_LD = x86_64-elf-ld
+AS = nasm
 
 CFLAGS =\
 -Wall \
+-Wextra \
 -Ignu-efi/inc \
 -fpic \
 -ffreestanding \
@@ -36,7 +40,8 @@ LDFLAGS_L =\
 -lgnuefi \
 -lefi
 
-OCPFLAGS =-j .text \
+OCPFLAGS =\
+-j .text \
 -j .sdata \
 -j .data \
 -j .rodata \
@@ -48,18 +53,46 @@ OCPFLAGS =-j .text \
 --target efi-app-x86_64 \
 --subsystem=10
 
+KERNEL_CFLAGS =\
+-Wall \
+-Wextra \
+-ffreestanding \
+-fno-stack-protector \
+-nostdlib \
+-m64 \
+-mno-red-zone \
+-masm=intel \
+-Ignu-efi/inc
+
+KERNEL_LDFLAGS =\
+-Ttext 0x100000 \
+--oformat binary
+
 
 all: clean build copydisk qemu
 
 build:
 	mkdir -p usbroot/EFI/BOOT/
 
-	$(CC) $(CFLAGS) -c src/main.c -o build/main.o
-	$(LD) $(LDFLAGS) build/main.o -o build/main.so  $(LDFLAGS_L)
+	$(CC) $(CFLAGS) -c src/nuckboot.c -o build/nuckboot.o
+	$(LD) $(LDFLAGS) build/nuckboot.o -o build/nuckboot.so  $(LDFLAGS_L)
 
-	$(OCP) $(OCPFLAGS) build/main.so build/main.efi
+	$(OCP) $(OCPFLAGS) build/nuckboot.so build/nuckboot.efi
 
-	cp build/main.efi usbroot/EFI/BOOT/BOOTX64.EFI
+	#kernel entry
+	$(AS) src/kernel_entry.asm -f elf64 -o build/kernel_entry.o
+
+	#kernel
+	$(KERNEL_CC) $(KERNEL_CFLAGS) -c src/kernel.c -o build/kernel.o
+	
+	#link kernel with kernel entry
+	$(KERNEL_LD) $(KERNEL_LDFLAGS) \
+	build/kernel_entry.o \
+	build/kernel.o \
+	-o build/kernel-full.bin
+
+	cp build/nuckboot.efi usbroot/EFI/BOOT/BOOTX64.EFI
+	cp build/kernel-full.bin usbroot/
 
 clean:
 	sudo rm -rf build/*
@@ -107,6 +140,10 @@ img:
 	\
 	sudo losetup -d $$LOOP_DEV
 
+
+
+
+
 copydisk:
 	lsblk
 
@@ -116,18 +153,12 @@ copydisk:
 	sudo tree mnt/
 	sudo umount $(EFI_PART)
 
-	sudo mount $(MAIN_PART) mnt/
-	sudo rm -rf mnt/*
-	sudo cp -r usbmain/* mnt/
-	sudo tree mnt/
-	sudo umount $(MAIN_PART)
-
 	sudo sync
+
 copyimg:
 	lsblk
 	sudo dd if=build/nuck_os.iso of=$(DEVICE) bs=1MiB status=progress
 	sudo sync
-
 
 qemu:
 	sudo qemu-system-x86_64 \
@@ -139,6 +170,16 @@ qemu:
 	-drive if=pflash,format=raw,unit=1,file=ovmf/OVMF_VARS-pure-efi.fd \
 	-usb -device usb-storage,drive=nuckusb \
     -drive file=$(DEVICE),if=none,format=raw,id=nuckusb
+
+
+
+
+
+
+
+
+
+
 
 
 

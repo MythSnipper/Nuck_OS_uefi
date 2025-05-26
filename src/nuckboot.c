@@ -1,4 +1,4 @@
-#include "main.h"
+#include "../include/nuckboot.h"
 #include <efi.h>
 #include <efilib.h>
 
@@ -60,7 +60,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
 
     //very good message
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to run OS kernel\r\n");
+    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load and run Nuck OS kernel\r\n");
 
     //variables used in main logic
     UINTN MemoryMapSize = 0; //size of the memory map in bytes
@@ -68,6 +68,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     UINTN MapKey;
     UINTN DescriptorSize;
     UINT32 DescriptorVersion;
+
+    //used to store the volume on the disk
+    EFI_FILE_PROTOCOL* root;
+    EFI_FILE_PROTOCOL* kernel_file;
+    UINT64 kernel_size;
 
     while(true){
         //keyboard input
@@ -95,8 +100,17 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     printMemoryMap(ST, MemoryMapSize, MemoryMap, MapKey, DescriptorSize, DescriptorVersion);
                     break;
                 case 0x0E:
+                    Print(L"loading kernel\r\n");
+                    root = openVolume(ST, ImageHandle); //opens root of filesystem of boot device
+                    //open file
+                    kernel_file = openFile(root, L"kernel.bin"); 
+                    //get file size
+                    kernel_size = getFileSize(kernel_file);
+                    
+                    //close file
+                    closeFile(kernel_file);
                     //get memory map
-                    Print(L"oah\r\n");
+                    Print(L"getting memory map\r\n");
                     status = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, &MemoryMapSize, MemoryMap, &MapKey, &DescriptorSize, &DescriptorVersion);
                     uefi_call_wrapper(ST->BootServices->ExitBootServices, 2, ImageHandle, MapKey);
                     goto exit_boot_services;
@@ -110,9 +124,62 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         *i = 0xFF;
     }
 
-
     while(1);
     return EFI_SUCCESS;
+}
+
+
+void closeFile(EFI_FILE_PROTOCOL* file){
+    EFI_STATUS status;
+    status = uefi_call_wrapper(file->Close, 1, file);
+    if(EFI_ERROR(status)){
+        Print(L"file close failed");
+    }
+}
+
+UINT64 getFileSize(EFI_FILE_PROTOCOL* file){    
+    EFI_FILE_INFO* info;
+    UINT64 ret;
+
+    info = LibFileInfo(file);
+    ret = info->FileSize;
+    FreePool(file);
+    Print(L"kernel size: %d\r\n", ret);
+    return ret;
+}
+
+EFI_FILE_PROTOCOL* openFile(EFI_FILE_PROTOCOL* volume, CHAR16* filename){
+    EFI_STATUS status;
+    EFI_FILE_PROTOCOL* file; //holds file
+
+    status = uefi_call_wrapper(volume->Open, 5, volume, &file, filename, EFI_FILE_MODE_READ, 0); //no need for attributes, only for creating files
+    if(EFI_ERROR(status)){
+        Print(L"file open failed\r\n");
+    }
+    return file;
+}
+
+EFI_FILE_PROTOCOL* openVolume(EFI_SYSTEM_TABLE* ST, EFI_HANDLE IH){
+    Print(L"Open volume func start");
+    //image interface
+    EFI_LOADED_IMAGE* loadedImage = NULL; //stores info about current uefi app + disk volume
+    EFI_FILE_IO_INTERFACE* fsInterface; 
+    EFI_FILE_PROTOCOL* volume;
+    EFI_STATUS status;
+
+    EFI_GUID imgGuid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+    EFI_GUID fsGuid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+
+    //get loaded image info, puts info into loadedImage
+    status = uefi_call_wrapper(ST->BootServices->HandleProtocol, 3, IH, &imgGuid, (void**)&loadedImage);
+    if(EFI_ERROR(status))Print(L"E1");
+    //get volume handle, gets fs from the disk
+    status = uefi_call_wrapper(ST->BootServices->HandleProtocol, 3, loadedImage->DeviceHandle, &fsGuid, (void*)&fsInterface);
+    if(EFI_ERROR(status))Print(L"E2");
+    //open root of the filesystem
+    status = uefi_call_wrapper(fsInterface->OpenVolume, 2, fsInterface, &volume);
+    if(EFI_ERROR(status))Print(L"E3");
+    return volume;
 }
 
 void printMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN MemoryMapSize, EFI_MEMORY_DESCRIPTOR* MemoryMap, UINTN MapKey, UINTN DescriptorSize, UINT32 DescriptorVersion){
@@ -218,8 +285,9 @@ void getMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN* MemoryMapSize, EFI_MEMORY_DESCRIP
 }
 
 void printLogo(EFI_SYSTEM_TABLE* ST){
-    CHAR16* oslogo = L"                                _   _    ___\r\n                               | | | |  / _ \\\r\n _   _                  _      | |_| | |  __/\r\n| \\ | |  _   _    ___  | | __   \\__,_|  \\___|   / _ \\  / ___| \r\n|  \\| | | | | |  / __| | |/ /      __   _      | | | | \\___ \\ \r\n| |\\  | | |_| | | (__  |   <      / _| (_)     | |_| |  ___) |\r\n|_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |      \\___/  |____/ \r\n                                 |  _| | |                    \r\n                                 |_|   |_|                    \r\n            \"operating system of the future\" (TM)\r\n";
-    CHAR16* oah = L"                                _   _    ___\r\n                               | | | |  / _ \\\r\n _   _                  _      | |_| | |  __/   ____              _\r\n| \\ | |  _   _    ___  | | __   \\__,_|  \\___|  | __ )  ___   ___ | |\r\n|  \\| | | | | |  / __| | |/ /      __   _      |  _ \\ / _ \\ / _ \\| __| \r\n| |\\  | | |_| | | (__  |   <      / _| (_)     | |_) | (_) | (_) | |_\r\n|_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |     |____/ \\___/ \\___/ \\__|\r\n                                 |  _| | |\r\n                                 |_|   |_|\r\n\"operating system of the future\" (TM)\r\n";
+    CHAR16* oslogo = L"                                   _   _    ___\r\n                                  | | | |  / _ \\\r\n    _   _                  _      | |_| | |  __/\r\n   | \\ | |  _   _    ___  | | __   \\__,_|  \\___|   / _ \\  / ___| \r\n   |  \\| | | | | |  / __| | |/ /      __   _      | | | | \\___ \\ \r\n   | |\\  | | |_| | | (__  |   <      / _| (_)     | |_| |  ___) |\r\n   |_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |      \\___/  |____/ \r\n                                    |  _| | |                    \r\n                                    |_|   |_|                    \r\n               \"operating system of the future\" (TM)\r\n";
+    CHAR16* oah = L"                                   _   _    ___\r\n                                  | | | |  / _ \\\r\n    _   _                  _      | |_| | |  __/   ____              _\r\n   | \\ | |  _   _    ___  | | __   \\__,_|  \\___|  | __ )  ___   ___ | |\r\n   |  \\| | | | | |  / __| | |/ /      __   _      |  _ \\ / _ \\ / _ \\| __| \r\n   | |\\  | | |_| | | (__  |   <      / _| (_)     | |_) | (_) | (_) | |_\r\n   |_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |     |____/ \\___/ \\___/ \\__|\r\n                                    |  _| | |\r\n                                    |_|   |_|\r\n               \"operating system of the future\" (TM)\r\n";
+    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, oslogo);
     uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, oah);
 }
 
