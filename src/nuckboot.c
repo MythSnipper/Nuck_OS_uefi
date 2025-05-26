@@ -8,7 +8,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     EFI_INPUT_KEY key;
     EFI_STATUS status;
 
-    CHAR16 buff[2] = L"\0\0";
+    CHAR16 buff[2] = u"\0\0";
 
     InitializeLib(ImageHandle, ST); //initialize runtime pointers
 
@@ -60,7 +60,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
 
     //very good message
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load and run Nuck OS kernel\r\n");
+    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load Nuck OS kernel\r\nF5 to select GOP mode\r\nF6 to set GOP, get memory map, and load Nuck OS kernel\r\n");
 
     //variables used in main logic
     UINTN MemoryMapSize = 0; //size of the memory map in bytes
@@ -73,6 +73,20 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     EFI_FILE_PROTOCOL* root;
     EFI_FILE_PROTOCOL* kernel_file;
     UINT64 kernel_size;
+    EFI_PHYSICAL_ADDRESS kernel_addr;
+
+    //GOP variables
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* GOP;
+    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* GOPInfo;
+    UINTN GOPInfoSize;
+    UINTN GOPNumModes;
+    UINTN GOPNativeMode;
+
+    UINTN bestModeNum = 0;
+    UINTN bestModePixelCount = 0;
+    UINTN bestModeWidth = 0;
+    UINTN bestModeHeight = 0;
+    
 
     while(true){
         //keyboard input
@@ -105,12 +119,75 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     //open file
                     kernel_file = openFile(root, L"kernel.bin"); 
                     //get file size
-                    kernel_size = getFileSize(kernel_file);
+                    kernel_size = getFileSize(ST, kernel_file);
+
+                    //load kernel binary
+                    status = uefi_call_wrapper(ST->BootServices->AllocatePool, 3, EfiLoaderData, kernel_size, &kernel_addr);
+                    //read file to kernel address
+                    uefi_call_wrapper(kernel_file->Read, 3, kernel_file, &kernel_size, kernel_addr);  
                     
+                    Print(L"kernel load success\r\n");
                     //close file
                     closeFile(kernel_file);
+                    break;
+                case 0x0F:
+                    //set GOP
+                    EFI_GUID GOPGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
+                    status = uefi_call_wrapper(ST->BootServices->LocateProtocol, 3, &GOPGuid, NULL, (void**) &GOP);
+                    if(EFI_ERROR(status)){
+                        Print(L"No GOP\r\n");
+                    }
+                    status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP->Mode==NULL?0:GOP->Mode->Mode, &GOPInfoSize, &GOPInfo);
+                    //get the current video mode
+                    if(status == EFI_NOT_STARTED){
+                        status = uefi_call_wrapper(GOP->SetMode, 2, GOP, 0);
+                    }
+                    if(EFI_ERROR(status)){
+                        Print(L"Unable to get GOP native mode\r\n");
+                    }
+                    else{
+                        GOPNativeMode = GOP->Mode->Mode;
+                        GOPNumModes = GOP->Mode->MaxMode;
+                    }
+                    Print(L"GOP native mode: %d\r\nGOP number of modes: %d\r\n", GOPNativeMode, GOPNumModes);
+                    //query GOP modes
+                    for(UINTN i = 0;i<GOPNumModes;i++){
+                        status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, i, &GOPInfoSize, &GOPInfo);
+                        Print(L"mode %d: %dx%d format %x%s\r\n", i, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, i == GOPNativeMode ? L"(current)" : L"");                  
+                    }
+
+                    for(UINTN i = 0;i<GOPNumModes;i++){
+                        uefi_call_wrapper(GOP->QueryMode, 4, GOP, i, &GOPInfoSize, &GOPInfo);
+                        if(GOPInfo->PixelFormat != 1){
+                            continue;
+                        }
+                        UINTN pixelCount = GOPInfo->HorizontalResolution * GOPInfo->VerticalResolution;
+                        if(pixelCount > bestModePixelCount){
+                            bestModePixelCount = pixelCount;
+                            bestModeNum = i;
+                            bestModeWidth = GOPInfo->HorizontalResolution;
+                            bestModeHeight = GOPInfo->VerticalResolution;
+                        }
+                        else if(pixelCount == bestModePixelCount){
+                            if(bestModeWidth > GOPInfo->HorizontalResolution){
+                                bestModeNum = i;
+                                bestModeWidth = GOPInfo->HorizontalResolution;
+                                bestModeHeight = GOPInfo->VerticalResolution;
+                            }
+                        }
+                    }
+                    uefi_call_wrapper(GOP->QueryMode, 4, GOP, bestModeNum, &GOPInfoSize, &GOPInfo);
+                    Print(L"Selected:\r\nmode %d: %dx%d format %x%s\r\n", bestModeNum, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, bestModeNum == GOPNativeMode ? L"(current)" : L"");
+                    break;
+                case 0x10:
+                    //GOP info
+                    uefi_call_wrapper(GOP->QueryMode, 4, GOP, bestModeNum, &GOPInfoSize, &GOPInfo);
+                    //Set GOP mode
+                    status = uefi_call_wrapper(GOP->SetMode, 2, GOP, bestModeNum);
+                    if(EFI_ERROR(status)){
+                        Print(L"Unable to set GOP mode %d\r\n", bestModeNum);
+                    }
                     //get memory map
-                    Print(L"getting memory map\r\n");
                     status = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, &MemoryMapSize, MemoryMap, &MapKey, &DescriptorSize, &DescriptorVersion);
                     uefi_call_wrapper(ST->BootServices->ExitBootServices, 2, ImageHandle, MapKey);
                     goto exit_boot_services;
@@ -120,14 +197,13 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     }
     exit_boot_services:
 
-    for(char* i=(char*)0xA0000 ;i<=0xB8000;i++){
-        *i = 0xFF;
-    }
+    typedef void (*Kernel_entry)(EFI_SYSTEM_TABLE* ST, EFI_MEMORY_DESCRIPTOR* MemoryMap, UINTN MemoryMapSize, UINTN MemoryMapDescriptorSize, EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* GOPInfo);
+    Kernel_entry kernel_main = (Kernel_entry) kernel_addr;
+    kernel_main(ST, MemoryMap, MemoryMapSize, DescriptorSize, GOPInfo);
 
     while(1);
     return EFI_SUCCESS;
 }
-
 
 void closeFile(EFI_FILE_PROTOCOL* file){
     EFI_STATUS status;
@@ -137,13 +213,13 @@ void closeFile(EFI_FILE_PROTOCOL* file){
     }
 }
 
-UINT64 getFileSize(EFI_FILE_PROTOCOL* file){    
+UINT64 getFileSize(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* file){    
     EFI_FILE_INFO* info;
     UINT64 ret;
 
     info = LibFileInfo(file);
     ret = info->FileSize;
-    FreePool(file);
+    uefi_call_wrapper(ST->BootServices->FreePool, 1, info);
     Print(L"kernel size: %d\r\n", ret);
     return ret;
 }
@@ -160,7 +236,6 @@ EFI_FILE_PROTOCOL* openFile(EFI_FILE_PROTOCOL* volume, CHAR16* filename){
 }
 
 EFI_FILE_PROTOCOL* openVolume(EFI_SYSTEM_TABLE* ST, EFI_HANDLE IH){
-    Print(L"Open volume func start");
     //image interface
     EFI_LOADED_IMAGE* loadedImage = NULL; //stores info about current uefi app + disk volume
     EFI_FILE_IO_INTERFACE* fsInterface; 
@@ -172,13 +247,10 @@ EFI_FILE_PROTOCOL* openVolume(EFI_SYSTEM_TABLE* ST, EFI_HANDLE IH){
 
     //get loaded image info, puts info into loadedImage
     status = uefi_call_wrapper(ST->BootServices->HandleProtocol, 3, IH, &imgGuid, (void**)&loadedImage);
-    if(EFI_ERROR(status))Print(L"E1");
     //get volume handle, gets fs from the disk
     status = uefi_call_wrapper(ST->BootServices->HandleProtocol, 3, loadedImage->DeviceHandle, &fsGuid, (void*)&fsInterface);
-    if(EFI_ERROR(status))Print(L"E2");
     //open root of the filesystem
     status = uefi_call_wrapper(fsInterface->OpenVolume, 2, fsInterface, &volume);
-    if(EFI_ERROR(status))Print(L"E3");
     return volume;
 }
 
@@ -253,9 +325,9 @@ void printMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN MemoryMapSize, EFI_MEMORY_DESCRI
         while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
     }
     Print(L"\r\n----------END----------\r\n");
-    Print(L"Total mapped memory: %d KiB/%f MiB/%f GiB\r\n", totalMapped*4, totalMapped/256.0f, totalMapped/262144.0f);
-    Print(L"Total usable memory: %d KiB/%f MiB/%f GiB\r\n", totalUsable*4, totalUsable/256.0f, totalUsable/262144.0f);
-    Print(L"Total conventional memory: %d KiB/%f MiB/%f GiB\r\n", totalConventional*4, totalConventional/256.0f, totalConventional/262144.0f);
+    Print(L"Total mapped memory: %d pages/%f GB/%f GiB\r\n", totalMapped, totalMapped/250000.0f, totalMapped/262144.0f);
+    Print(L"Total usable memory: %d pages/%f GB/%f GiB\r\n", totalUsable, totalUsable/250000.0f, totalUsable/262144.0f);
+    Print(L"Total conventional memory: %d pages/%f GB/%f GiB\r\n", totalConventional, totalConventional/250000.0f, totalConventional/262144.0f);
 
 }
 
@@ -287,7 +359,6 @@ void getMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN* MemoryMapSize, EFI_MEMORY_DESCRIP
 void printLogo(EFI_SYSTEM_TABLE* ST){
     CHAR16* oslogo = L"                                   _   _    ___\r\n                                  | | | |  / _ \\\r\n    _   _                  _      | |_| | |  __/\r\n   | \\ | |  _   _    ___  | | __   \\__,_|  \\___|   / _ \\  / ___| \r\n   |  \\| | | | | |  / __| | |/ /      __   _      | | | | \\___ \\ \r\n   | |\\  | | |_| | | (__  |   <      / _| (_)     | |_| |  ___) |\r\n   |_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |      \\___/  |____/ \r\n                                    |  _| | |                    \r\n                                    |_|   |_|                    \r\n               \"operating system of the future\" (TM)\r\n";
     CHAR16* oah = L"                                   _   _    ___\r\n                                  | | | |  / _ \\\r\n    _   _                  _      | |_| | |  __/   ____              _\r\n   | \\ | |  _   _    ___  | | __   \\__,_|  \\___|  | __ )  ___   ___ | |\r\n   |  \\| | | | | |  / __| | |/ /      __   _      |  _ \\ / _ \\ / _ \\| __| \r\n   | |\\  | | |_| | | (__  |   <      / _| (_)     | |_) | (_) | (_) | |_\r\n   |_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |     |____/ \\___/ \\___/ \\__|\r\n                                    |  _| | |\r\n                                    |_|   |_|\r\n               \"operating system of the future\" (TM)\r\n";
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, oslogo);
     uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, oah);
 }
 
@@ -319,14 +390,4 @@ void printInfo(EFI_SYSTEM_TABLE* ST){
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLACK));
     uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"!\r\n");
 }
-
-
-
-
-
-
-
-
-
-
 

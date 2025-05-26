@@ -65,7 +65,6 @@ KERNEL_CFLAGS =\
 -Ignu-efi/inc
 
 KERNEL_LDFLAGS =\
--Ttext 0x100000 \
 --oformat binary
 
 
@@ -79,20 +78,16 @@ build:
 
 	$(OCP) $(OCPFLAGS) build/nuckboot.so build/nuckboot.efi
 
-	#kernel entry
-	$(AS) src/kernel_entry.asm -f elf64 -o build/kernel_entry.o
-
 	#kernel
 	$(KERNEL_CC) $(KERNEL_CFLAGS) -c src/kernel.c -o build/kernel.o
 	
 	#link kernel with kernel entry
 	$(KERNEL_LD) $(KERNEL_LDFLAGS) \
-	build/kernel_entry.o \
 	build/kernel.o \
 	-o build/kernel-full.bin
 
 	cp build/nuckboot.efi usbroot/EFI/BOOT/BOOTX64.EFI
-	cp build/kernel-full.bin usbroot/
+	cp build/kernel-full.bin usbroot/kernel.bin
 
 clean:
 	sudo rm -rf build/*
