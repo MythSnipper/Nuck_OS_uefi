@@ -1,0 +1,7 @@
+.vscode/
+build/
+gnu-efi/
+mnt/
+ovmf/
+shim/
+usbroot/
