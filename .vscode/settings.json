@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "efilib.h": "c"
+        "efilib.h": "c",
+        "nuckboot.h": "c"
     }
 }

@@ -1,7 +1,7 @@
+#include "../include/nuckdef.h"
 #include "../include/nuckboot.h"
 #include <efi.h>
 #include <efilib.h>
-
 
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable){
     EFI_SYSTEM_TABLE* ST = SystemTable;
@@ -60,7 +60,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
 
     //very good message
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load Nuck OS kernel\r\nF5 to select GOP mode\r\nF6 to set GOP, get memory map, and load Nuck OS kernel\r\n");
+    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load Nuck OS kernel\r\nF5 to select GOP mode\r\nF6 to set GOP\r\nF7 to get memory map and run Nuck OS kernel\r\n");
 
     //variables used in main logic
     UINTN MemoryMapSize = 0; //size of the memory map in bytes
@@ -187,21 +187,37 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     if(EFI_ERROR(status)){
                         Print(L"Unable to set GOP mode %d\r\n", bestModeNum);
                     }
+                    break;
+                case 0x11:
                     //get memory map
                     status = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, &MemoryMapSize, MemoryMap, &MapKey, &DescriptorSize, &DescriptorVersion);
                     uefi_call_wrapper(ST->BootServices->ExitBootServices, 2, ImageHandle, MapKey);
                     goto exit_boot_services;
+                    break;
+                case 0x12:
+                    EFI_PHYSICAL_ADDRESS a;
+                    status = uefi_call_wrapper(ST->BootServices->AllocatePool, 8, 4096, &a);
                     break;
             }
         }
     }
     exit_boot_services:
 
-    typedef void (*Kernel_entry)(EFI_SYSTEM_TABLE* ST, EFI_MEMORY_DESCRIPTOR* MemoryMap, UINTN MemoryMapSize, UINTN MemoryMapDescriptorSize, EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* GOPInfo);
+    typedef void (*Kernel_entry)(KERNEL_CONTEXT_TABLE*);
     Kernel_entry kernel_main = (Kernel_entry) kernel_addr;
-    kernel_main(ST, MemoryMap, MemoryMapSize, DescriptorSize, GOPInfo);
 
-    while(1);
+    KERNEL_CONTEXT_TABLE ctx = {
+        ST->FirmwareVendor,
+        ST->FirmwareRevision,
+        ST->RuntimeServices,
+        MemoryMap,
+        MemoryMapSize,
+        DescriptorSize,
+        GOP->Mode
+    };
+    kernel_main(&ctx);
+
+    while(true);
     return EFI_SUCCESS;
 }
 
@@ -289,18 +305,38 @@ void printMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN MemoryMapSize, EFI_MEMORY_DESCRI
     Print(L"----------START----------\r\n");
     for(UINTN i = 0;i < entries;i++){
         Print(L"#%lu - ", i+1);
+        
         if(MM->Type < sizeof(type_arr)/sizeof(type_arr[0])){
             //add to mem size counters
             totalMapped += MM->NumberOfPages;
-            if(MM->Type == EfiLoaderCode || MM->Type == EfiBootServicesCode || MM->Type == EfiBootServicesData || MM->Type == EfiConventionalMemory)totalUsable += MM->NumberOfPages;
-            if(MM->Type == EfiConventionalMemory)totalConventional += MM->NumberOfPages;
-
+            if(MM->Type == EfiLoaderCode || MM->Type == EfiBootServicesCode || MM->Type == EfiBootServicesData || MM->Type == EfiConventionalMemory){
+                uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_GREEN, EFI_GREEN));
+                totalUsable += MM->NumberOfPages;
+            }
+            else if(MM->Type == EfiLoaderData){
+                uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_BLUE, EFI_BLUE));
+            }
+            else{
+                uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_RED, EFI_RED));
+            }
+            if(MM->Type == EfiConventionalMemory){
+                totalConventional += MM->NumberOfPages;
+            }
+            Print(L" ");
+            //reset color
+            uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
             Print(L"%s ", type_arr[MM->Type]);
         }
         else{
-            Print(L"Unknown ");
+            uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_MAGENTA, EFI_MAGENTA));
+            Print(L" ");
+            //reset color
+            uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
+            Print(L"0x%x ", MM->Type);
         }
-        Print(L"Range:0x%lx - 0x%lx", MM->PhysicalStart, (MM->PhysicalStart + (MM->NumberOfPages*4096) - 1));
+        Print(L" ");
+
+        Print(L"Range:0x%lx - 0x%lx ", MM->PhysicalStart, (MM->PhysicalStart + (MM->NumberOfPages*4096) - 1));
         if(MM->Attribute & 0x1)Print(L"UC ");
         if(MM->Attribute & 0x2)Print(L"WC ");
         if(MM->Attribute & 0x4)Print(L"WT ");
@@ -390,4 +426,3 @@ void printInfo(EFI_SYSTEM_TABLE* ST){
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLACK));
     uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"!\r\n");
 }
-

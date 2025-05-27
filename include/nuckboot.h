@@ -1,11 +1,10 @@
-#ifndef MAIN_H
-#define MAIN_H
+#ifndef NUCKBOOT_H
+#define NUCKBOOT_H
 
+#include "../include/nuckdef.h"
 #include <efi.h>
 #include <efilib.h>
 
-#define true 1
-#define false 0
 
 void closeFile(EFI_FILE_PROTOCOL* file);
 UINT64 getFileSize(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* file);
