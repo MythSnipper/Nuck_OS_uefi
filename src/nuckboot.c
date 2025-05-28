@@ -153,7 +153,12 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     //query GOP modes
                     for(UINTN i = 0;i<GOPNumModes;i++){
                         status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, i, &GOPInfoSize, &GOPInfo);
-                        Print(L"mode %d: %dx%d format %x%s\r\n", i, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, i == GOPNativeMode ? L"(current)" : L"");                  
+                        if(EFI_ERROR(status)){
+                            Print(L"Get mode %d failed!", i);
+                        }
+                        else{
+                            Print(L"mode %d: %dx%d format %x%s\r\n", i, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, i == GOPNativeMode ? L"(current)" : L"");                  
+                        }
                     }
 
                     for(UINTN i = 0;i<GOPNumModes;i++){
@@ -287,7 +292,7 @@ void printMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN MemoryMapSize, EFI_MEMORY_DESCRI
     L"EfiMemoryMappedIO",
     L"EfiMemoryMappedIOPortSpace",
     L"EfiPalCode",
-    L"EfiPersistentMemory",
+    L"EfiPersistentMemory", //yes
     L"EfiUnacceptedMemoryType",
     L"EfiMaxMemoryType"
     };
@@ -309,7 +314,7 @@ void printMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN MemoryMapSize, EFI_MEMORY_DESCRI
         if(MM->Type < sizeof(type_arr)/sizeof(type_arr[0])){
             //add to mem size counters
             totalMapped += MM->NumberOfPages;
-            if(MM->Type == EfiLoaderCode || MM->Type == EfiBootServicesCode || MM->Type == EfiBootServicesData || MM->Type == EfiConventionalMemory){
+            if(MM->Type == EfiLoaderCode || MM->Type == EfiBootServicesCode || MM->Type == EfiBootServicesData || MM->Type == EfiConventionalMemory || MM->Type == EfiPersistentMemory){
                 uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_GREEN, EFI_GREEN));
                 totalUsable += MM->NumberOfPages;
             }
