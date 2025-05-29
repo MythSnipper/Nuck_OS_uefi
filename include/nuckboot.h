@@ -5,6 +5,15 @@
 #include <efi.h>
 #include <efilib.h>
 
+typedef struct{
+    CHAR16*                            FirmwareVendor;
+    UINT32                             FirmwareRevision;
+    EFI_RUNTIME_SERVICES*              RuntimeServices;
+    EFI_MEMORY_DESCRIPTOR*             MemoryMap;
+    UINTN                              MemoryMapSize;
+    UINTN                              MemoryMapDescriptorSize;
+    EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* GOP;
+} KERNEL_CONTEXT_TABLE;
 
 void closeFile(EFI_FILE_PROTOCOL* file);
 UINT64 getFileSize(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* file);
