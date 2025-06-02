@@ -53,11 +53,14 @@ OCPFLAGS =\
 --target efi-app-x86_64 \
 --subsystem=10
 
+
+
 KERNEL_CFLAGS =\
 -Wall \
 -Wextra \
 -ffreestanding \
 -fno-stack-protector \
+-fpie \
 -nostdlib \
 -m64 \
 -mno-red-zone \
@@ -65,6 +68,8 @@ KERNEL_CFLAGS =\
 -Ignu-efi/inc
 
 KERNEL_LDFLAGS =\
+-nostdlib \
+-e kernel_main \
 --oformat binary
 
 
@@ -80,7 +85,7 @@ build:
 
 	#kernel
 	$(KERNEL_CC) $(KERNEL_CFLAGS) -c src/kernel.c -o build/kernel.o
-	
+
 	#link kernel with kernel entry
 	$(KERNEL_LD) $(KERNEL_LDFLAGS) \
 	build/kernel.o \
@@ -156,6 +161,7 @@ copyimg:
 	sudo sync
 
 qemu:
+	sudo sync
 	sudo qemu-system-x86_64 \
 	-cpu host \
 	-enable-kvm \

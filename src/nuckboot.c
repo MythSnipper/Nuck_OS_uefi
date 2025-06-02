@@ -1,14 +1,10 @@
-#include "../include/nuckdef.h"
 #include "../include/nuckboot.h"
-#include <efi.h>
-#include <efilib.h>
-void test();
 
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable){
     EFI_SYSTEM_TABLE* ST = SystemTable;
     EFI_INPUT_KEY key;
     EFI_STATUS status;
-    test();
+
     CHAR16 buff[2] = L"\0\0";
 
     InitializeLib(ImageHandle, ST); //initialize runtime pointers
@@ -226,24 +222,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     while(true);
     return EFI_SUCCESS;
 }
-
-void test(){
-
-    CHAR16 test[2] = L"\0\0";
-    for(CHAR16 i=0;i<256;i++){
-        uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_RED));
-        Print(L"E");
-        if(i%2==0){
-            uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_BLUE, EFI_RED));
-        }
-        else{
-            uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_RED, EFI_BLUE));
-        }
-        test[0] = i;
-        Print(test);
-    }
-}
-
 
 void closeFile(EFI_FILE_PROTOCOL* file){
     EFI_STATUS status;
