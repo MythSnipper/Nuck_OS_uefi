@@ -36,21 +36,8 @@ typedef struct{
 
 
 void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
-
-    while(ctx->GOP->Info->PixelFormat != 1);
-    GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
     
-    GOPDrawRect(ctx->GOP, 0, 0, 99, 99, rgba(255, 0, 0, 0), true); //red
-    GOPDrawRect(ctx->GOP, 100, 0, 199, 199, rgba(0, 255, 0, 0), true);
-    GOPDrawRect(ctx->GOP, 200, 0, 299, 299, rgba(0, 0, 255, 0), true);
-    GOPDrawRect(ctx->GOP, 300, 0, 399, 399, rgba(255, 255, 0, 0), true);
-    GOPDrawRect(ctx->GOP, 400, 0, 499, 499, rgba(255, 0, 255, 0), true);
-    GOPDrawRect(ctx->GOP, 500, 0, 599, 599, rgba(0, 255, 255, 0), true);
-    GOPDrawRect(ctx->GOP, 600, 0, 699, 699, hex(0xFF0000), true);
-    GOPDrawRect(ctx->GOP, 700, 0, 799, 799, hex(0x00FF00), true);
-    GOPDrawRect(ctx->GOP, 800, 0, 899, 899, hex(0x0000FF), true);
-    
-
+    //data
     uint8_t VGAfont[] = {
         //32
         0b00000000,
@@ -1669,6 +1656,22 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         0b00000000
     };
     
+
+    
+
+    while(ctx->GOP->Info->PixelFormat != 1);
+    GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
+    
+    GOPDrawRect(ctx->GOP, 0, 0, 99, 99, rgba(255, 0, 0, 0), true); //red
+    GOPDrawRect(ctx->GOP, 100, 0, 199, 199, rgba(0, 255, 0, 0), true);
+    GOPDrawRect(ctx->GOP, 200, 0, 299, 299, rgba(0, 0, 255, 0), true);
+    GOPDrawRect(ctx->GOP, 300, 0, 399, 399, rgba(255, 255, 0, 0), true);
+    GOPDrawRect(ctx->GOP, 400, 0, 499, 499, rgba(255, 0, 255, 0), true);
+    GOPDrawRect(ctx->GOP, 500, 0, 599, 599, rgba(0, 255, 255, 0), true);
+    GOPDrawRect(ctx->GOP, 600, 0, 699, 699, hex(0xFF0000), true);
+    GOPDrawRect(ctx->GOP, 700, 0, 799, 799, hex(0x00FF00), true);
+    GOPDrawRect(ctx->GOP, 800, 0, 899, 899, hex(0x0000FF), true);
+    
     KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 2, 2, 0, 0, 0, 0, hex(0x00FF00), hex(0x000000), false};
     KERNEL_TEXT_OUTPUT ConOut2 = {VGAfont, 8, 16, 8, 8, 0, 0, 200, 400, hex(0x00FF00), hex(0x000000), true};
     for(uint8_t c=32;c<130;c++){
@@ -1678,7 +1681,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     printString(ctx->GOP, &ConOut, "Gontzes man takes IB GDC :skull:\r\n");
 
     printf(ctx->GOP, &ConOut, "Hello %%%c%c%c!\r\n", 'o', 'a', 'h');
-    printf(ctx->GOP, &ConOut, "Number %d\r\n", -57);
+    printf(ctx->GOP, &ConOut, "Number %d to %d to %c to the %f\r\n", -57, 30, '0', 3811.3731219999);
 
     printString(ctx->GOP, &ConOut2, "NUCK OS!!!\r\n");
 
@@ -1687,127 +1690,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 }
 
 
-void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t* str, ...){
-    va_list args;
-    va_start(args, str);
 
-    while (*str) {
-        if(*str != '%'){ //if not a format specifier
-            printChar(GOP, ConOut, *str++);
-            continue;
-        }
-        str++; //skip the '%'
 
-        char format = *str; //character
-        switch(format){
-            case '%':
-                printChar(GOP, ConOut, '%'); //print literal '%'
-                break;
-            case 'c':
-                printChar(GOP, ConOut, (uint8_t) va_arg(args, int));
-                break;
-            case 'd': //int
-                printInt(GOP, ConOut, (int64_t) va_arg(args, int), 10);
-                break;
-            case 'f': //float
-                //TODO
-                break;
-            case 'lf': //double
-                //TODO
-                break;
-            case 'Lf': //long double
-                //TODO
-                break;
-            case 'i': //signed int
-                printInt(GOP, ConOut, (int64_t) va_arg(args, int), 10);
-                break;
-            case 'ld': //long
-                printInt(GOP, ConOut, (int64_t) va_arg(args, int), 10);
-                break;
-            case 'li': //long
-                printInt(GOP, ConOut, (int64_t) va_arg(args, int), 10);
-                break;
-            case 'lu': //unsigned int / unsigned long
-                printUint(GOP, ConOut, (uint64_t) va_arg(args, int), 10);
-                break;
-            case 'o': //octal
-                printUint(GOP, ConOut, (uint64_t) va_arg(args, int), 8);
-                break;
-            case 'p': //pointer
-                printUint(GOP, ConOut, (uint64_t) va_arg(args, void*), 16);
-                break;
-            case 's': //string
-                printString(GOP, ConOut, (uint8_t*) va_arg(args, void*));
-                break;
-            case 'u': //unsigned int
-                printUint(GOP, ConOut, (uint64_t) va_arg(args, int), 10);
-                break;
-            case 'x': //hex
-                printUint(GOP, ConOut, (uint64_t) va_arg(args, int), 16);
-                break;
-            case 'X': //hex
-                printUint(GOP, ConOut, (uint64_t) va_arg(args, int), 16);
-                break;
-            case 'n': //nothing
-                break;
-            default:
-                //nuh uh, print the character itself
-                printChar(GOP, ConOut, format);
-                break;
-        }
-        str++;
-    }
-    va_end(args);
-}
-
-void printInt(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, int64_t num, uint8_t base){
-    if(num < 0){
-        printChar(GOP, ConOut, '-');
-        num = -num;
-    }
-    printUint(GOP, ConOut, num, base);
-}
-
-void printUint(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint64_t num, uint8_t base){
-    if(base < 2 || base > 16){
-        return;
-    }
-    uint8_t buff[65]; //buffer to store digits
-    uint8_t* ptr = buff+64; //top of buffer + 1
-    *ptr = 0; //null terminator
-
-    uint8_t* charmap = "0123456789ABCDEF"; //character map
-
-    if(base == 2){
-        printString(GOP, ConOut, "0b");
-    }
-    else if(base == 8){
-        printString(GOP, ConOut, "0o");
-    }
-    else if(base == 10){
-
-    }
-    else if(base == 16){
-        printString(GOP, ConOut, "0x");
-    }
-    else{
-        printString(GOP, ConOut, "base");
-        printUint(GOP, ConOut, base, 10);
-        printChar(GOP, ConOut, ':');
-    }
-
-    if(num == 0){
-        printChar(GOP, ConOut, '0');
-        return;
-    }
-    
-    while(num != 0){
-        ptr--;
-        *ptr = charmap[num % base]; //push digit to buffer
-        num /= base;
-    }
-    printString(GOP, ConOut, ptr);
-}
 
 uint64_t encodeGDTEntry(uint32_t base, uint32_t limit, uint8_t access, uint8_t flags){
     if(limit > 0xFFFFF){
@@ -1821,6 +1705,163 @@ uint64_t encodeGDTEntry(uint32_t base, uint32_t limit, uint8_t access, uint8_t f
             (uint64_t)((flags & 0xF) << 52) | //flags
             (uint64_t)((base & 0xFF000000) << 32); //high base
     return entry;
+}
+
+void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t* str, ...){
+    va_list args;
+    va_start(args, str);
+
+    bool longType = false;
+    while (*str) {
+        if(*str != '%'){ //if not a format specifier
+            printChar(GOP, ConOut, *str++);
+            continue;
+        }
+        str++; //skip the '%'
+
+        if(*str == 0){
+            break;
+        }
+        if(*str == '%'){
+            printChar(GOP, ConOut, '%');
+            str++;
+            continue;
+        }
+
+        longType = false;
+        if(*str == 'l'){
+            longType = true;
+            str++;
+            if(*str == 0){
+                break;
+            }
+        }
+
+        char format = *str; //character
+        switch(format){
+            case 'c': //char
+                printChar(GOP, ConOut, (uint8_t)va_arg(args, int32_t));
+                break;
+            case 's': //string
+                printString(GOP, ConOut, (uint8_t*)va_arg(args, uint8_t*));
+                break;
+
+            case 'd':
+            case 'i': //signed int
+                if(longType){
+                    printInt(GOP, ConOut, (int64_t)va_arg(args, int64_t), 10);
+                }
+                else{
+                    printInt(GOP, ConOut, (int64_t)va_arg(args, int32_t), 10); 
+                }
+                break;
+            
+            case 'u': //unsigned int
+                if(longType){
+                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint64_t), 10);
+                }
+                else{
+                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint32_t), 10);
+                }
+                break;
+
+            case 'o': //octal
+                if(longType){
+                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint64_t), 8);
+                }
+                else{
+                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint32_t), 8);
+                }
+                break;
+            case 'x': //hex
+            case 'X': //hex
+                if(longType){
+                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint64_t), 16);
+                }
+                else{
+                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint32_t), 16);
+                }
+                break;
+
+            case 'p': //pointer
+                printUint(GOP, ConOut, (uint64_t)va_arg(args, void*), 16);
+                break;
+            
+            case 'f': //float
+                if(longType){
+                    printFloat(GOP, ConOut, (double) va_arg(args, double), 16); 
+                }
+                else{
+                    printFloat(GOP, ConOut, (double) va_arg(args, double), 6);
+                }
+                break;
+            case 'l':
+                printChar(GOP, ConOut, 'l');
+                break;
+            case 'n': //nothing
+                break;
+            default:
+                //nuh uh, print the character itself
+                printChar(GOP, ConOut, '%');
+                printChar(GOP, ConOut, format);
+                str--;
+                break;
+        }
+        str++;
+    }
+    va_end(args);
+}
+void printFloat(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec){
+    if(num < 0.0){
+        printChar(GOP, ConOut, '-');
+        num = -num;
+    }
+    printUfloat(GOP, ConOut, num, prec);
+}
+void printUfloat(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec){
+    printUint(GOP, ConOut, (uint64_t)num, 10); //print integer part
+    printChar(GOP, ConOut, '.');
+    num -= (double)(uint64_t)num;
+    uint8_t digit;
+    for(uint8_t c = 0;c < prec;c++){
+        num *= 10.0;
+        digit = (uint8_t)num;
+        printChar(GOP, ConOut, digit + '0');
+        num -= digit;
+    }
+}
+void printInt(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, int64_t num, uint8_t base){
+    if(num < 0){
+        printChar(GOP, ConOut, '-');
+        printUint(GOP, ConOut, (uint64_t)(-num), base);
+        return;
+    }
+    printUint(GOP, ConOut, num, base);
+}
+void printUint(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint64_t num, uint8_t base){
+    if(base < 2 || base > 16)return;
+
+    if(base == 2)printString(GOP, ConOut, "0b");
+    else if(base == 8)printString(GOP, ConOut, "0o");
+    else if(base == 16)printString(GOP, ConOut, "0x");
+
+    if(num == 0){
+        printChar(GOP, ConOut, '0');
+        return;
+    }
+
+    uint8_t buff[65]; //buffer to store digits
+    buff[64] = 0;
+    uint8_t index = 64;
+
+    uint8_t* charmap = "0123456789ABCDEF"; //character map
+
+    while(num != 0){
+        index--;
+        buff[index] = charmap[num % base]; //push digit to buffer
+        num /= base;
+    }
+    printString(GOP, ConOut, &buff[index]);
 }
 void printString(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t* string){
     while(*string){ //while it's not null
@@ -1876,9 +1917,6 @@ void printChar(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t ascii_char){
     if(ConOut->cursorY >= maxHeight){
         ConOut->cursorY = 0; //TODO: replace this line with scroll
     }
-}
-void sortMemoryMap(EFI_MEMORY_DESCRIPTOR** MM, uint64_t MM_size, uint64_t MM_desc_size){
-
 }
 void GOPDrawRect(EFI_GOP* GOP, uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color, uint8_t fill){
     //convert x, y to memory address
