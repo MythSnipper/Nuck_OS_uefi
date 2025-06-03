@@ -37,7 +37,52 @@ typedef struct{
 
 void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     
-    //data
+    //set GDT entries
+    GDT_Entry GDT[3];
+    GDT_Descriptor GDTPtr;
+
+    GDTPtr.size = sizeof(GDT)-1;
+    GDTPtr.offset = (uint64_t)&GDT;
+
+    setGDTEntry(&GDT[0], 0, 0, 0, 0); //null descriptor right here
+
+    setGDTEntry(&GDT[1], 0, 0, //Code segment, base and limit 0 because long mode
+    0b10011010, //Access:present, ring 0, non system segment(code/data segment), executable(code segment), non conforming, readable, access
+    0b1010 //granularity: page granularity(not byte), size flag(0 because long mode), long mode code, reserved
+    );
+
+    setGDTEntry(&GDT[2], 0, 0, //Data segment, base and limit 0 because long mode
+    0b10010010, //Access:present, ring 0, non system segment(code/data segment), non executable(data segment), up direction, writable, access
+    0b1000 //granularity: page granularity(not byte), size flag(0 because long mode data), not long mode code, reserved
+    );
+    //load the GDT
+    asm volatile(
+        ".intel_syntax noprefix\n"
+        "lgdt [%[gdt]]\n"
+        "mov ax, 0x10\n"
+        "mov ds, ax\n"
+        "mov es, ax\n"
+        "mov fs, ax\n"
+        "mov gs, ax\n"
+        "mov ss, ax\n"
+        "jmp .gdt_loaded_yiper\n"
+        ".gdt_loaded_yiper:\n"
+        ".att_syntax\n"
+        :
+        : [gdt] "r"(&GDTPtr)
+        : "memory", "rax"
+    );
+
+
+
+
+
+    while(ctx->GOP->Info->PixelFormat != 1);
+
+    //data section
+    uint32_t versionMajor = 1;
+    uint32_t versionMinor = 0;
+    //font
     uint8_t VGAfont[] = {
         //32
         0b00000000,
@@ -1655,36 +1700,50 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         0b00000000,
         0b00000000
     };
-    
 
-    
 
-    while(ctx->GOP->Info->PixelFormat != 1);
+
+
+    //Display
     GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
-    
-    GOPDrawRect(ctx->GOP, 0, 0, 99, 99, rgba(255, 0, 0, 0), true); //red
-    GOPDrawRect(ctx->GOP, 100, 0, 199, 199, rgba(0, 255, 0, 0), true);
-    GOPDrawRect(ctx->GOP, 200, 0, 299, 299, rgba(0, 0, 255, 0), true);
-    GOPDrawRect(ctx->GOP, 300, 0, 399, 399, rgba(255, 255, 0, 0), true);
-    GOPDrawRect(ctx->GOP, 400, 0, 499, 499, rgba(255, 0, 255, 0), true);
-    GOPDrawRect(ctx->GOP, 500, 0, 599, 599, rgba(0, 255, 255, 0), true);
-    GOPDrawRect(ctx->GOP, 600, 0, 699, 699, hex(0xFF0000), true);
-    GOPDrawRect(ctx->GOP, 700, 0, 799, 799, hex(0x00FF00), true);
-    GOPDrawRect(ctx->GOP, 800, 0, 899, 899, hex(0x0000FF), true);
-    
-    KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 2, 2, 0, 0, 0, 0, hex(0x00FF00), hex(0x000000), false};
-    KERNEL_TEXT_OUTPUT ConOut2 = {VGAfont, 8, 16, 8, 8, 0, 0, 200, 400, hex(0x00FF00), hex(0x000000), true};
-    for(uint8_t c=32;c<130;c++){
-        printChar(ctx->GOP, &ConOut, c);
-    }
-    printString(ctx->GOP, &ConOut, "PRINTING TEXT WITH DIFFERENT SCALE @@@\r\n\n");
-    printString(ctx->GOP, &ConOut, "Gontzes man takes IB GDC :skull:\r\n");
 
-    printf(ctx->GOP, &ConOut, "Hello %%%c%c%c!\r\n", 'o', 'a', 'h');
-    printf(ctx->GOP, &ConOut, "Number %d to %d to %c to the %f\r\n", -57, 30, '0', 3811.3731219999);
+    bool fill = true;
+    uint32_t screenX = ctx->GOP->Info->HorizontalResolution - 1;
+    uint32_t screenYFraction = ctx->GOP->Info->VerticalResolution / 5;
+    GOPDrawRect(ctx->GOP, 0, 0, screenX, screenYFraction - 1, hex(0x55CDFC), fill);
+    GOPDrawRect(ctx->GOP, 0, screenYFraction, screenX, 2*screenYFraction - 1, hex(0xF7A8B8), fill);
+    GOPDrawRect(ctx->GOP, 0, 2*screenYFraction, screenX, 3*screenYFraction - 1, hex(0xFFFFFF), fill);
+    GOPDrawRect(ctx->GOP, 0, 3*screenYFraction, screenX, 4*screenYFraction - 1, hex(0xF7A8B8), fill);
+    GOPDrawRect(ctx->GOP, 0, 4*screenYFraction, screenX, 5*screenYFraction - 1, hex(0x55CDFC), fill);
 
-    printString(ctx->GOP, &ConOut2, "NUCK OS!!!\r\n");
 
+    KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 4, 4, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
+    KERNEL_TEXT_OUTPUT ConOut2 = {VGAfont, 8, 16, 2, 2, 0, 6, 0, 0, hex(0xFF10F0), hex(0x000000), false};
+
+    printf(ctx->GOP, &ConOut, "Welcome to \r\n");
+    ConOut.frontColor = 0xE50000;ConOut.backColor = 0x000000;
+    printf(ctx->GOP, &ConOut, "N");
+    ConOut.frontColor = 0xFF8D00;ConOut.backColor = 0x000000;
+    printf(ctx->GOP, &ConOut, "u");
+    ConOut.frontColor = 0xFFEE00;ConOut.backColor = 0x000000;
+    printf(ctx->GOP, &ConOut, "c");
+    ConOut.frontColor = 0x028121;ConOut.backColor = 0x000000;
+    printf(ctx->GOP, &ConOut, "k");
+    ConOut.frontColor = 0xFF10F0;ConOut.backColor = 0x000000;
+    printf(ctx->GOP, &ConOut, " ");
+    ConOut.frontColor = 0x004CFF;ConOut.backColor = 0x000000;
+    printf(ctx->GOP, &ConOut, "O");
+    ConOut.frontColor = 0x770088;ConOut.backColor = 0x000000;
+    printf(ctx->GOP, &ConOut, "S");
+    ConOut.frontColor = 0xFF10F0;ConOut.backColor = 0x000000;
+
+    printf(ctx->GOP, &ConOut, " Version %u.%u!\r\n", versionMajor, versionMinor);
+
+    printf(ctx->GOP, &ConOut2, "From the %s to the %s to the %s to the %s\r\nwhere's my crown, that's my bling, always %f when I ring\r\n", "screen", "ring", "pen", "king", 1.7);
+    printf(ctx->GOP, &ConOut2, "It's pride month!\r\n");
+
+    for(uint64_t oah = 0;oah < 1000000000;oah++);
+    triple_fault();
 
     while(true);
 }
@@ -1692,19 +1751,25 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
 
 
+void setGDTEntry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags){
+    entry->limit_low = (uint16_t)(limit & 0xFFFF);
+    entry->base_low = (uint16_t)(base & 0xFFFF);
+    entry->base_mid = (uint8_t)((base & 0xFF0000) >> 16);
+    entry->access = access;
+    entry->limit__flags = (uint8_t)(((limit & 0xF0000) >> 16) | (flags << 4));
+    entry->base_high = (uint8_t)(base >> 24);
+}
 
-uint64_t encodeGDTEntry(uint32_t base, uint32_t limit, uint8_t access, uint8_t flags){
-    if(limit > 0xFFFFF){
-        return 0;
-    }
-    uint64_t entry;
-    entry = (uint64_t)(limit & 0xFFFF) | //low limit
-            (uint64_t)((base & 0xFFFFFF) << 16) | //low base
-            (uint64_t)(access << 40) | //access byte
-            (uint64_t)((limit & 0xF0000) << 16) | //high limit
-            (uint64_t)((flags & 0xF) << 52) | //flags
-            (uint64_t)((base & 0xFF000000) << 32); //high base
-    return entry;
+void triple_fault(){
+    uint64_t egg = 0;
+    asm volatile (
+        ".intel_syntax noprefix\n"
+        "lidt [%[eggman]]\n"
+        ".byte 0x0F, 0x0B\n" //unsupported instruction(fault), invalid idt(double fault), exception handler not found(triple fault)
+        ".att_syntax\n"
+        :
+        : [eggman] "r"(&egg)
+    );
 }
 
 void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t* str, ...){

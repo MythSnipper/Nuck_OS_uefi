@@ -64,7 +64,6 @@ KERNEL_CFLAGS =\
 -nostdlib \
 -m64 \
 -mno-red-zone \
--masm=intel \
 -Ignu-efi/inc \
 -O0
 
