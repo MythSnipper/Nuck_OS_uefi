@@ -28,7 +28,7 @@ typedef struct{
     uint64_t                           MemoryMapSize;
     uint64_t                           MemoryMapDescriptorSize;
     EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* GOP;
-    EFI_PHYSICAL_ADDRESS               fb; //backbuffer in bootloader, frontbuffer in kernel
+    EFI_PHYSICAL_ADDRESS               fb; //backbuffer
     EFI_PHYSICAL_ADDRESS               kernelStack;
     uint64_t                           kernelStackSize;
 } KERNEL_CONTEXT_TABLE;
@@ -73,9 +73,21 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         : "memory", "rax"
     );
 
+    uint8_t CODE_SEG = sizeof(GDT[0]);
+    uint8_t DATA_SEG = sizeof(GDT[0]) * 2;
 
 
-
+/*
+typedef struct __attribute__((packed)) {
+    uint16_t offset_low;
+    uint16_t segment;
+    uint8_t ist;
+    uint8_t attributes;
+    uint16_t offset_mid;
+    uint32_t offset_high;
+    uint32_t reserved;
+} IDT_Entry;
+*/ 
 
     while(ctx->GOP->Info->PixelFormat != 1);
 
@@ -1703,58 +1715,75 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
 
 
-
     //Display
+    //swap the buffers so the GOP framebuffer is actually the backbuffer
+    {
+        EFI_PHYSICAL_ADDRESS backbuf = ctx->fb;
+        ctx->fb = ctx->GOP->FrameBufferBase; //set fb to vram
+        ctx->GOP->FrameBufferBase = backbuf; //set the GOP address to backbuffer
+    }
+
     GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
 
     bool fill = true;
     uint32_t screenX = ctx->GOP->Info->HorizontalResolution - 1;
     uint32_t screenYFraction = ctx->GOP->Info->VerticalResolution / 5;
+    for(int i=0;i<200;i++){
     GOPDrawRect(ctx->GOP, 0, 0, screenX, screenYFraction - 1, hex(0x55CDFC), fill);
     GOPDrawRect(ctx->GOP, 0, screenYFraction, screenX, 2*screenYFraction - 1, hex(0xF7A8B8), fill);
     GOPDrawRect(ctx->GOP, 0, 2*screenYFraction, screenX, 3*screenYFraction - 1, hex(0xFFFFFF), fill);
     GOPDrawRect(ctx->GOP, 0, 3*screenYFraction, screenX, 4*screenYFraction - 1, hex(0xF7A8B8), fill);
     GOPDrawRect(ctx->GOP, 0, 4*screenYFraction, screenX, 5*screenYFraction - 1, hex(0x55CDFC), fill);
+    }
 
+    KERNEL_TEXT_OUTPUT title = {VGAfont, 8, 16, 4, 4, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
+    KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 2, 2, 0, 6, 0, 0, hex(0xFF10F0), hex(0x000000), false};
 
-    KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 4, 4, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
-    KERNEL_TEXT_OUTPUT ConOut2 = {VGAfont, 8, 16, 2, 2, 0, 6, 0, 0, hex(0xFF10F0), hex(0x000000), false};
+    printf(ctx->GOP, &title, "Welcome to \r\n");
+    title.frontColor = 0xE50000;title.backColor = 0x000000;
+    printf(ctx->GOP, &title, "N");
+    title.frontColor = 0xFF8D00;title.backColor = 0x000000;
+    printf(ctx->GOP, &title, "u");
+    title.frontColor = 0xFFEE00;title.backColor = 0x000000;
+    printf(ctx->GOP, &title, "c");
+    title.frontColor = 0x028121;title.backColor = 0x000000;
+    printf(ctx->GOP, &title, "k");
+    title.frontColor = 0xFF10F0;title.backColor = 0x000000;
+    printf(ctx->GOP, &title, " ");
+    title.frontColor = 0x004CFF;title.backColor = 0x000000;
+    printf(ctx->GOP, &title, "O");
+    title.frontColor = 0x770088;title.backColor = 0x000000;
+    printf(ctx->GOP, &title, "S");
+    title.frontColor = 0xFF10F0;title.backColor = 0x000000;
 
-    printf(ctx->GOP, &ConOut, "Welcome to \r\n");
-    ConOut.frontColor = 0xE50000;ConOut.backColor = 0x000000;
-    printf(ctx->GOP, &ConOut, "N");
-    ConOut.frontColor = 0xFF8D00;ConOut.backColor = 0x000000;
-    printf(ctx->GOP, &ConOut, "u");
-    ConOut.frontColor = 0xFFEE00;ConOut.backColor = 0x000000;
-    printf(ctx->GOP, &ConOut, "c");
-    ConOut.frontColor = 0x028121;ConOut.backColor = 0x000000;
-    printf(ctx->GOP, &ConOut, "k");
-    ConOut.frontColor = 0xFF10F0;ConOut.backColor = 0x000000;
-    printf(ctx->GOP, &ConOut, " ");
-    ConOut.frontColor = 0x004CFF;ConOut.backColor = 0x000000;
-    printf(ctx->GOP, &ConOut, "O");
-    ConOut.frontColor = 0x770088;ConOut.backColor = 0x000000;
-    printf(ctx->GOP, &ConOut, "S");
-    ConOut.frontColor = 0xFF10F0;ConOut.backColor = 0x000000;
+    printf(ctx->GOP, &title, " Version %u.%u!\r\n", versionMajor, versionMinor);
 
-    printf(ctx->GOP, &ConOut, " Version %u.%u!\r\n", versionMajor, versionMinor);
+    printf(ctx->GOP, &ConOut, "From the %s to the %s to the %s to the %s\r\nWhere's my crown, that's my bling, always %f when I ring\r\n", "screen", "ring", "pen", "king", 1.7);
+    printf(ctx->GOP, &ConOut, "It's pride month!\r\n");
 
-    printf(ctx->GOP, &ConOut2, "From the %s to the %s to the %s to the %s\r\nwhere's my crown, that's my bling, always %f when I ring\r\n", "screen", "ring", "pen", "king", 1.7);
-    printf(ctx->GOP, &ConOut2, "It's pride month!\r\n");
+    printf(ctx->GOP, &ConOut, "Code segment: %x\r\nData segment: %x\r\n", CODE_SEG, DATA_SEG);
 
-
+    
+    memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
     while(true);
 }
 
-
-
+void setIDTEntry(IDT_Entry* entry, uint64_t offset, uint16_t segment, uint8_t ISTOffset, uint8_t attributes){
+    entry->offset_low = (uint16_t)(offset & 0xFFFF);
+    entry->segment = segment;
+    entry->ist = (uint8_t)(ISTOffset & 0b111); //only last 3 bits are the ist, 5 high bits set to 0 because reserved
+    entry->attributes = attributes;
+    entry->offset_mid = (uint16_t)((offset >> 16) & 0xFFFF);
+    entry->offset_high = (uint32_t)((offset >> 32) & 0xFFFFFFFF);
+    entry->reserved = 0;
+}
 
 void setGDTEntry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags){
     entry->limit_low = (uint16_t)(limit & 0xFFFF);
     entry->base_low = (uint16_t)(base & 0xFFFF);
-    entry->base_mid = (uint8_t)((base & 0xFF0000) >> 16);
+    entry->base_mid = (uint8_t)((base >> 16) & 0xFF);
     entry->access = access;
-    entry->limit__flags = (uint8_t)(((limit & 0xF0000) >> 16) | (flags << 4));
+    entry->limit__flags = (uint8_t)(((limit >> 16) & 0xF) | (flags << 4));
     entry->base_high = (uint8_t)(base >> 24);
 }
 
@@ -1763,11 +1792,26 @@ void triple_fault(){
     asm volatile (
         ".intel_syntax noprefix\n"
         "lidt [%[eggman]]\n"
-        ".byte 0x0F, 0x0B\n" //unsupported instruction(fault), invalid idt(double fault), exception handler not found(triple fault)
+        ".byte 0x0F, 0x0B\n" //invalid opcode(fault), invalid idt(double fault), exception handler not found(triple fault)
         ".att_syntax\n"
         :
         : [eggman] "r"(&egg)
     );
+}
+
+void* memcpy(void* source, void* dest, uint64_t size){
+    uint8_t* d = (uint8_t*) dest;
+    uint8_t* s = (uint8_t*) source;
+    while(size > sizeof(uint64_t)){ //64 bit copy
+        *(uint64_t*)d = *(uint64_t*)s;
+        s += sizeof(uint64_t);
+        d += sizeof(uint64_t);
+        size -= sizeof(uint64_t);
+    }
+    while(size--){
+        *d++ = *s++;
+    }
+    return dest;
 }
 
 void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t* str, ...){

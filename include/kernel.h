@@ -5,6 +5,17 @@
 #include <efi.h>
 #include <efilib.h>
 
+
+typedef struct __attribute__((packed)) {
+    uint16_t offset_low;
+    uint16_t segment;
+    uint8_t ist;
+    uint8_t attributes;
+    uint16_t offset_mid;
+    uint32_t offset_high;
+    uint32_t reserved;
+} IDT_Entry;
+
 typedef struct __attribute__((packed)) {
     uint16_t limit_low;
     uint16_t base_low;
@@ -53,7 +64,7 @@ typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;
 
 void setGDTEntry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags);
 void triple_fault();
-
+void* memcpy(void* source, void* dest, uint64_t size);
 void printFloat(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec);
 void printUfloat(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec);
 void printInt(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, int64_t num, uint8_t base);
