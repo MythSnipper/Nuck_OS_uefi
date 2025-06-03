@@ -7,12 +7,15 @@
 
 typedef struct{
     CHAR16*                            FirmwareVendor;
-    UINT32                             FirmwareRevision;
+    uint32_t                           FirmwareRevision;
     EFI_RUNTIME_SERVICES*              RuntimeServices;
     EFI_MEMORY_DESCRIPTOR*             MemoryMap;
-    UINTN                              MemoryMapSize;
-    UINTN                              MemoryMapDescriptorSize;
+    uint64_t                           MemoryMapSize;
+    uint64_t                           MemoryMapDescriptorSize;
     EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* GOP;
+    EFI_PHYSICAL_ADDRESS               fb; //backbuffer in bootloader, frontbuffer in kernel
+    EFI_PHYSICAL_ADDRESS               kernelStack;
+    uint64_t                           kernelStackSize;
 } KERNEL_CONTEXT_TABLE;
 
 void closeFile(EFI_FILE_PROTOCOL* file);

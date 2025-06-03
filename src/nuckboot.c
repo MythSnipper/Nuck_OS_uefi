@@ -57,7 +57,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
 
     //very good message
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load Nuck OS kernel\r\nF5 to select GOP mode\r\nF6 to set GOP\r\nF7 to get memory map and run Nuck OS kernel\r\n");
+    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load Nuck OS kernel\r\nF5 to select GOP mode\r\nF6 to set GOP, get memory map and run Nuck OS kernel\r\n");
 
     //variables used in main logic
     UINTN MemoryMapSize = 0; //size of the memory map in bytes
@@ -84,6 +84,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     UINTN bestModeWidth = 0;
     UINTN bestModeHeight = 0;
     
+    EFI_PHYSICAL_ADDRESS fb2_addr; //backbuffer
+    EFI_PHYSICAL_ADDRESS kernel_stack; //kernel stack(not top, start)
+    uint64_t kernel_stack_size = 256; //size in pages
 
     while(true){
         //keyboard input
@@ -100,11 +103,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
             switch(key.ScanCode){
                 case 0x0B:
                     uefi_call_wrapper(ST->RuntimeServices->ResetSystem, 4, EfiResetShutdown, EFI_SUCCESS, 0, NULL);
-                    Print(L"Success!\r\n");
                     break;
                 case 0x0C:
                     uefi_call_wrapper(ST->ConIn->Reset, 2, ST->ConIn, false);
-                    Print(L"Success!\r\n");
                     break;
                 case 0x0D:
                     getMemoryMap(ST, &MemoryMapSize, &MemoryMap, &MapKey, &DescriptorSize, &DescriptorVersion);
@@ -189,16 +190,22 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     if(EFI_ERROR(status)){
                         Print(L"Unable to set GOP mode %d\r\n", bestModeNum);
                     }
-                    break;
-                case 0x11:
+
+                    //allocate memory for backbuffer
+                    status = uefi_call_wrapper(ST->BootServices->AllocatePool, 3, EfiLoaderData, GOP->Mode->FrameBufferSize, &fb2_addr);
+                    if(EFI_ERROR(status)){
+                        Print(L"Can't allocate pool of %d bytes for video backbuffer\r\n", GOP->Mode->FrameBufferSize);
+                    }
+                    //allocate memory for kernel stack
+                    status = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, kernel_stack_size, &kernel_stack);
+                    if(EFI_ERROR(status)){
+                        Print(L"Can't allocate %d pages for kernel stack\r\n", kernel_stack_size);
+                    }
+
                     //get memory map
                     status = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, &MemoryMapSize, MemoryMap, &MapKey, &DescriptorSize, &DescriptorVersion);
                     uefi_call_wrapper(ST->BootServices->ExitBootServices, 2, ImageHandle, MapKey);
                     goto exit_boot_services;
-                    break;
-                case 0x12:
-                    EFI_PHYSICAL_ADDRESS a;
-                    status = uefi_call_wrapper(ST->BootServices->AllocatePool, 8, 4096, &a);
                     break;
             }
         }
@@ -206,7 +213,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     exit_boot_services:
 
     typedef void (*Kernel_entry)(KERNEL_CONTEXT_TABLE*);
-    Kernel_entry kernel_main = (Kernel_entry) kernel_addr;
+    Kernel_entry kernel_main = (void*)kernel_addr;
 
     KERNEL_CONTEXT_TABLE ctx = {
         ST->FirmwareVendor,
@@ -215,9 +222,23 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         MemoryMap,
         MemoryMapSize,
         DescriptorSize,
-        GOP->Mode
+        GOP->Mode,
+        fb2_addr,
+        kernel_stack,
+        kernel_stack_size
     };
-    kernel_main(&ctx);
+
+    asm volatile(
+        ".intel_syntax noprefix\n"
+        "mov rsp, %[stack_top]\n"
+        "mov rdi, %[ctx_ptr]\n"
+        "call %[kernel_entry]\n"
+        ".att_syntax\n"
+        :
+        : [stack_top] "r"((uint64_t) kernel_stack + kernel_stack_size),
+        [ctx_ptr] "r"(&ctx),
+        [kernel_entry] "r"(kernel_main)
+    );
 
     while(true);
     return EFI_SUCCESS;

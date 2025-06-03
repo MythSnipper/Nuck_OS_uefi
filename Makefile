@@ -65,7 +65,8 @@ KERNEL_CFLAGS =\
 -m64 \
 -mno-red-zone \
 -masm=intel \
--Ignu-efi/inc
+-Ignu-efi/inc \
+-O0
 
 KERNEL_LDFLAGS =\
 -nostdlib \
@@ -172,7 +173,16 @@ qemu:
 	-usb -device usb-storage,drive=nuckusb \
     -drive file=$(DEVICE),if=none,format=raw,id=nuckusb
 
-
+qemu-slow:
+	sudo sync
+	sudo qemu-system-x86_64 \
+	-icount shift=10,sleep=on \
+	-m 8192 \
+	-net none \
+	-drive if=pflash,format=raw,unit=0,file=ovmf/OVMF_CODE-pure-efi.fd,readonly=on \
+	-drive if=pflash,format=raw,unit=1,file=ovmf/OVMF_VARS-pure-efi.fd \
+	-usb -device usb-storage,drive=nuckusb \
+    -drive file=$(DEVICE),if=none,format=raw,id=nuckusb
 
 
 

@@ -2,17 +2,6 @@
 
 
 /*
-typedef struct{
-    CHAR16*                                 FirmwareVendor;
-    UINT32                                  FirmwareRevision;
-    EFI_RUNTIME_SERVICES*                   RuntimeServices;
-    EFI_MEMORY_DESCRIPTOR*                  MemoryMap;
-    UINTN                                   MemoryMapSize;
-    UINTN                                   MemoryMapDescriptorSize;
-    EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE*      GOP;
-} KERNEL_CONTEXT_TABLE;
-
-
 typedef struct {
     UINT32                                 MaxMode;
     UINT32                                 Mode;
@@ -30,9 +19,24 @@ typedef struct {
     EFI_PIXEL_BITMASK          PixelInformation;
     UINT32                     PixelsPerScanLine;
 } EFI_GRAPHICS_OUTPUT_MODE_INFORMATION;
+
+typedef struct{
+    CHAR16*                            FirmwareVendor;
+    uint32_t                           FirmwareRevision;
+    EFI_RUNTIME_SERVICES*              RuntimeServices;
+    EFI_MEMORY_DESCRIPTOR*             MemoryMap;
+    uint64_t                           MemoryMapSize;
+    uint64_t                           MemoryMapDescriptorSize;
+    EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* GOP;
+    EFI_PHYSICAL_ADDRESS               fb; //backbuffer in bootloader, frontbuffer in kernel
+    EFI_PHYSICAL_ADDRESS               kernelStack;
+    uint64_t                           kernelStackSize;
+} KERNEL_CONTEXT_TABLE;
 */
 
+
 void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
+
     while(ctx->GOP->Info->PixelFormat != 1);
     GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
     
@@ -45,6 +49,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     GOPDrawRect(ctx->GOP, 600, 0, 699, 699, hex(0xFF0000), true);
     GOPDrawRect(ctx->GOP, 700, 0, 799, 799, hex(0x00FF00), true);
     GOPDrawRect(ctx->GOP, 800, 0, 899, 899, hex(0x0000FF), true);
+    
 
     uint8_t VGAfont[] = {
         //32
@@ -1664,28 +1669,162 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         0b00000000
     };
     
-    KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 2, 2, 0, 0, hex(0x00FF00), hex(0x000000)};
-    KERNEL_TEXT_OUTPUT ConOut2 = {VGAfont, 8, 16, 8, 8, 0, 1, hex(0x00FF00), hex(0x000000)};
+    KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 2, 2, 0, 0, 0, 0, hex(0x00FF00), hex(0x000000), false};
+    KERNEL_TEXT_OUTPUT ConOut2 = {VGAfont, 8, 16, 8, 8, 0, 0, 200, 400, hex(0x00FF00), hex(0x000000), true};
     for(uint8_t c=32;c<130;c++){
         printChar(ctx->GOP, &ConOut, c);
     }
-    printString(ctx->GOP, &ConOut, "PRINTING TEXT WITH DIFFERENT SCALE @@@\r\n");
-    printString(ctx->GOP, &ConOut2, "\r\nNUCK OS!!!\r\n");
-    printString(ctx->GOP, &ConOut, "\n\n\n\n\rGontzes man takes IB GDC :skull:\r\n");
+    printString(ctx->GOP, &ConOut, "PRINTING TEXT WITH DIFFERENT SCALE @@@\r\n\n");
+    printString(ctx->GOP, &ConOut, "Gontzes man takes IB GDC :skull:\r\n");
+
+    printf(ctx->GOP, &ConOut, "Hello %%%c%c%c!\r\n", 'o', 'a', 'h');
+    printf(ctx->GOP, &ConOut, "Number %d\r\n", -57);
+
+    printString(ctx->GOP, &ConOut2, "NUCK OS!!!\r\n");
 
 
-
-
-
-
-    
     while(true);
 }
 
+
+void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t* str, ...){
+    va_list args;
+    va_start(args, str);
+
+    while (*str) {
+        if(*str != '%'){ //if not a format specifier
+            printChar(GOP, ConOut, *str++);
+            continue;
+        }
+        str++; //skip the '%'
+
+        char format = *str; //character
+        switch(format){
+            case '%':
+                printChar(GOP, ConOut, '%'); //print literal '%'
+                break;
+            case 'c':
+                printChar(GOP, ConOut, (uint8_t) va_arg(args, int));
+                break;
+            case 'd': //int
+                printInt(GOP, ConOut, (int64_t) va_arg(args, int), 10);
+                break;
+            case 'f': //float
+                //TODO
+                break;
+            case 'lf': //double
+                //TODO
+                break;
+            case 'Lf': //long double
+                //TODO
+                break;
+            case 'i': //signed int
+                printInt(GOP, ConOut, (int64_t) va_arg(args, int), 10);
+                break;
+            case 'ld': //long
+                printInt(GOP, ConOut, (int64_t) va_arg(args, int), 10);
+                break;
+            case 'li': //long
+                printInt(GOP, ConOut, (int64_t) va_arg(args, int), 10);
+                break;
+            case 'lu': //unsigned int / unsigned long
+                printUint(GOP, ConOut, (uint64_t) va_arg(args, int), 10);
+                break;
+            case 'o': //octal
+                printUint(GOP, ConOut, (uint64_t) va_arg(args, int), 8);
+                break;
+            case 'p': //pointer
+                printUint(GOP, ConOut, (uint64_t) va_arg(args, void*), 16);
+                break;
+            case 's': //string
+                printString(GOP, ConOut, (uint8_t*) va_arg(args, void*));
+                break;
+            case 'u': //unsigned int
+                printUint(GOP, ConOut, (uint64_t) va_arg(args, int), 10);
+                break;
+            case 'x': //hex
+                printUint(GOP, ConOut, (uint64_t) va_arg(args, int), 16);
+                break;
+            case 'X': //hex
+                printUint(GOP, ConOut, (uint64_t) va_arg(args, int), 16);
+                break;
+            case 'n': //nothing
+                break;
+            default:
+                //nuh uh, print the character itself
+                printChar(GOP, ConOut, format);
+                break;
+        }
+        str++;
+    }
+    va_end(args);
+}
+
+void printInt(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, int64_t num, uint8_t base){
+    if(num < 0){
+        printChar(GOP, ConOut, '-');
+        num = -num;
+    }
+    printUint(GOP, ConOut, num, base);
+}
+
+void printUint(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint64_t num, uint8_t base){
+    if(base < 2 || base > 16){
+        return;
+    }
+    uint8_t buff[65]; //buffer to store digits
+    uint8_t* ptr = buff+64; //top of buffer + 1
+    *ptr = 0; //null terminator
+
+    uint8_t* charmap = "0123456789ABCDEF"; //character map
+
+    if(base == 2){
+        printString(GOP, ConOut, "0b");
+    }
+    else if(base == 8){
+        printString(GOP, ConOut, "0o");
+    }
+    else if(base == 10){
+
+    }
+    else if(base == 16){
+        printString(GOP, ConOut, "0x");
+    }
+    else{
+        printString(GOP, ConOut, "base");
+        printUint(GOP, ConOut, base, 10);
+        printChar(GOP, ConOut, ':');
+    }
+
+    if(num == 0){
+        printChar(GOP, ConOut, '0');
+        return;
+    }
+    
+    while(num != 0){
+        ptr--;
+        *ptr = charmap[num % base]; //push digit to buffer
+        num /= base;
+    }
+    printString(GOP, ConOut, ptr);
+}
+
+uint64_t encodeGDTEntry(uint32_t base, uint32_t limit, uint8_t access, uint8_t flags){
+    if(limit > 0xFFFFF){
+        return 0;
+    }
+    uint64_t entry;
+    entry = (uint64_t)(limit & 0xFFFF) | //low limit
+            (uint64_t)((base & 0xFFFFFF) << 16) | //low base
+            (uint64_t)(access << 40) | //access byte
+            (uint64_t)((limit & 0xF0000) << 16) | //high limit
+            (uint64_t)((flags & 0xF) << 52) | //flags
+            (uint64_t)((base & 0xFF000000) << 32); //high base
+    return entry;
+}
 void printString(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t* string){
     while(*string){ //while it's not null
-        printChar(GOP, ConOut, *string);
-        string++;
+        printChar(GOP, ConOut, *string++);
     }
 }
 void printChar(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t ascii_char){
@@ -1713,6 +1852,9 @@ void printChar(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t ascii_char){
     uint32_t screenX = ConOut->cursorX * ConOut->charWidth * ConOut->scaleX; //screen position to print character to
     uint32_t screenY = ConOut->cursorY * ConOut->charHeight * ConOut->scaleY;
 
+    screenX += (ConOut->useAbsolutePosition) ? ConOut->offsetX : 0;
+    screenY += (ConOut->useAbsolutePosition) ? ConOut->offsetY : 0;
+
     uint32_t startingIndex = (ascii_char-32)*ConOut->charHeight; //starting index of the font array for the character
     for(uint32_t dy = 0;dy < ConOut->charHeight;dy++){
         uint8_t row = ConOut->font[startingIndex + dy];
@@ -1734,7 +1876,6 @@ void printChar(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t ascii_char){
     if(ConOut->cursorY >= maxHeight){
         ConOut->cursorY = 0; //TODO: replace this line with scroll
     }
-
 }
 void sortMemoryMap(EFI_MEMORY_DESCRIPTOR** MM, uint64_t MM_size, uint64_t MM_desc_size){
 
