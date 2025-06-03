@@ -1742,8 +1742,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     printf(ctx->GOP, &ConOut2, "From the %s to the %s to the %s to the %s\r\nwhere's my crown, that's my bling, always %f when I ring\r\n", "screen", "ring", "pen", "king", 1.7);
     printf(ctx->GOP, &ConOut2, "It's pride month!\r\n");
 
-    for(uint64_t oah = 0;oah < 1000000000;oah++);
-    triple_fault();
 
     while(true);
 }
