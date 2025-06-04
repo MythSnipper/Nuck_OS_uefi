@@ -2,6 +2,11 @@
     "files.associations": {
         "efilib.h": "c",
         "nuckboot.h": "c",
-        "nuckdef.h": "c"
+        "nuckdef.h": "c",
+        "array": "c",
+        "ranges": "c",
+        "span": "c",
+        "string_view": "c",
+        "string": "c"
     }
 }

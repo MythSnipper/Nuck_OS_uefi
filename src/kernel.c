@@ -1,5 +1,5 @@
 #include "../include/kernel.h"
-
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 /*
 typedef struct {
@@ -38,8 +38,8 @@ typedef struct{
 void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     
     //set GDT entries
-    GDT_Entry GDT[3];
-    GDT_Descriptor GDTPtr;
+    __attribute__((aligned(0x10)))static GDT_Entry GDT[3];
+    static GDT_Descriptor GDTPtr;
 
     GDTPtr.size = sizeof(GDT)-1;
     GDTPtr.offset = (uint64_t)&GDT;
@@ -76,22 +76,292 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     uint8_t CODE_SEG = sizeof(GDT[0]);
     uint8_t DATA_SEG = sizeof(GDT[0]) * 2;
 
+    //set IDT entries
+    __attribute__((aligned(0x10)))static IDT_Entry IDT[256];
+    static IDT_Descriptor IDTPtr;
 
-/*
-typedef struct __attribute__((packed)) {
-    uint16_t offset_low;
-    uint16_t segment;
-    uint8_t ist;
-    uint8_t attributes;
-    uint16_t offset_mid;
-    uint32_t offset_high;
-    uint32_t reserved;
-} IDT_Entry;
-*/ 
+    IDTPtr.size = sizeof(IDT)-1;
+    IDTPtr.offset = (uint64_t)&IDT;
+    
+    //interrupts
+    {
+    //atributes: present, ring 0, 0, gate type(1110 interrupt, 1111 trap)
+    setIDTEntry(&IDT[0], CODE_SEG, (uint64_t) &isr_0, 0b000, 0b10001110); //#DE Divide Error
+    setIDTEntry(&IDT[1], CODE_SEG, (uint64_t) &isr_1, 0b000, 0b10001110); //#DB Debug Exception
+    setIDTEntry(&IDT[2], CODE_SEG, (uint64_t) &isr_2, 0b000, 0b10001110); //NMI nonmaskable external int
+    setIDTEntry(&IDT[3], CODE_SEG, (uint64_t) &isr_3, 0b000, 0b10001110); //#BP breakpoint
+    setIDTEntry(&IDT[4], CODE_SEG, (uint64_t) &isr_4, 0b000, 0b10001110); //#OF overflow
+    setIDTEntry(&IDT[5], CODE_SEG, (uint64_t) &isr_5, 0b000, 0b10001110); //#BR BOUND range exceeded
+    setIDTEntry(&IDT[6], CODE_SEG, (uint64_t) &isr_6, 0b000, 0b10001110); //#UD invalid opcode
+    setIDTEntry(&IDT[7], CODE_SEG, (uint64_t) &isr_7, 0b000, 0b10001110); //#NM device not available(no math processor)
+    setIDTEntry(&IDT[8], CODE_SEG, (uint64_t) &isr_8, 0b000, 0b10001110); //#DF double fault
+    setIDTEntry(&IDT[9], CODE_SEG, (uint64_t) &isr_9, 0b000, 0b10001110); // coprocessor segment overrun(reserved)
+    setIDTEntry(&IDT[10], CODE_SEG, (uint64_t) &isr_10, 0b000, 0b10001110); //#TS invalid TSS
+    setIDTEntry(&IDT[11], CODE_SEG, (uint64_t) &isr_11, 0b000, 0b10001110); //#NP Segment Not Present
+    setIDTEntry(&IDT[12], CODE_SEG, (uint64_t) &isr_12, 0b000, 0b10001110); //#SS Stack-Segment fault
+    setIDTEntry(&IDT[13], CODE_SEG, (uint64_t) &isr_13, 0b000, 0b10001110); //#GP General Protection
+    setIDTEntry(&IDT[14], CODE_SEG, (uint64_t) &isr_14, 0b000, 0b10001110); //#PF Page fault
+    setIDTEntry(&IDT[15], CODE_SEG, (uint64_t) &isr_15, 0b000, 0b10001110); // intel reserved, DO NOT USE
+    setIDTEntry(&IDT[16], CODE_SEG, (uint64_t) &isr_16, 0b000, 0b10001110); //#MF x87 FPU floating-point error(math fault)
+    setIDTEntry(&IDT[17], CODE_SEG, (uint64_t) &isr_17, 0b000, 0b10001110); //#AC alignment check
+    setIDTEntry(&IDT[18], CODE_SEG, (uint64_t) &isr_18, 0b000, 0b10001110); //#MC machine check
+    setIDTEntry(&IDT[19], CODE_SEG, (uint64_t) &isr_19, 0b000, 0b10001110); //#XM SIMD floating point exception
+    setIDTEntry(&IDT[20], CODE_SEG, (uint64_t) &isr_20, 0b000, 0b10001110); //#VE virtualization exception
+    setIDTEntry(&IDT[21], CODE_SEG, (uint64_t) &isr_21, 0b000, 0b10001110); //#CP control protection exception
+    setIDTEntry(&IDT[22], CODE_SEG, (uint64_t) &isr_22, 0b000, 0b10001110); //reserved vv
+    setIDTEntry(&IDT[23], CODE_SEG, (uint64_t) &isr_23, 0b000, 0b10001110);
+    setIDTEntry(&IDT[24], CODE_SEG, (uint64_t) &isr_24, 0b000, 0b10001110);
+    setIDTEntry(&IDT[25], CODE_SEG, (uint64_t) &isr_25, 0b000, 0b10001110);
+    setIDTEntry(&IDT[26], CODE_SEG, (uint64_t) &isr_26, 0b000, 0b10001110);
+    setIDTEntry(&IDT[27], CODE_SEG, (uint64_t) &isr_27, 0b000, 0b10001110);
+    setIDTEntry(&IDT[28], CODE_SEG, (uint64_t) &isr_28, 0b000, 0b10001110);
+    setIDTEntry(&IDT[29], CODE_SEG, (uint64_t) &isr_29, 0b000, 0b10001110);
+    setIDTEntry(&IDT[30], CODE_SEG, (uint64_t) &isr_30, 0b000, 0b10001110);
+    setIDTEntry(&IDT[31], CODE_SEG, (uint64_t) &isr_31, 0b000, 0b10001110); //reserved ^^
+    }
+
+    //external interrupts
+    {
+    setIDTEntry(&IDT[32], CODE_SEG, (uint64_t) &isr_32, 0b000, 0b10001110);
+    setIDTEntry(&IDT[33], CODE_SEG, (uint64_t) &isr_33, 0b000, 0b10001110);
+    setIDTEntry(&IDT[34], CODE_SEG, (uint64_t) &isr_34, 0b000, 0b10001110);
+    setIDTEntry(&IDT[35], CODE_SEG, (uint64_t) &isr_35, 0b000, 0b10001110);
+    setIDTEntry(&IDT[36], CODE_SEG, (uint64_t) &isr_36, 0b000, 0b10001110);
+    setIDTEntry(&IDT[37], CODE_SEG, (uint64_t) &isr_37, 0b000, 0b10001110);
+    setIDTEntry(&IDT[38], CODE_SEG, (uint64_t) &isr_38, 0b000, 0b10001110);
+    setIDTEntry(&IDT[39], CODE_SEG, (uint64_t) &isr_39, 0b000, 0b10001110);
+    setIDTEntry(&IDT[40], CODE_SEG, (uint64_t) &isr_40, 0b000, 0b10001110);
+    setIDTEntry(&IDT[41], CODE_SEG, (uint64_t) &isr_41, 0b000, 0b10001110);
+    setIDTEntry(&IDT[42], CODE_SEG, (uint64_t) &isr_42, 0b000, 0b10001110);
+    setIDTEntry(&IDT[43], CODE_SEG, (uint64_t) &isr_43, 0b000, 0b10001110);
+    setIDTEntry(&IDT[44], CODE_SEG, (uint64_t) &isr_44, 0b000, 0b10001110);
+    setIDTEntry(&IDT[45], CODE_SEG, (uint64_t) &isr_45, 0b000, 0b10001110);
+    setIDTEntry(&IDT[46], CODE_SEG, (uint64_t) &isr_46, 0b000, 0b10001110);
+    setIDTEntry(&IDT[47], CODE_SEG, (uint64_t) &isr_47, 0b000, 0b10001110);
+    setIDTEntry(&IDT[48], CODE_SEG, (uint64_t) &isr_48, 0b000, 0b10001110);
+    setIDTEntry(&IDT[49], CODE_SEG, (uint64_t) &isr_49, 0b000, 0b10001110);
+    setIDTEntry(&IDT[50], CODE_SEG, (uint64_t) &isr_50, 0b000, 0b10001110);
+    setIDTEntry(&IDT[51], CODE_SEG, (uint64_t) &isr_51, 0b000, 0b10001110);
+    setIDTEntry(&IDT[52], CODE_SEG, (uint64_t) &isr_52, 0b000, 0b10001110);
+    setIDTEntry(&IDT[53], CODE_SEG, (uint64_t) &isr_53, 0b000, 0b10001110);
+    setIDTEntry(&IDT[54], CODE_SEG, (uint64_t) &isr_54, 0b000, 0b10001110);
+    setIDTEntry(&IDT[55], CODE_SEG, (uint64_t) &isr_55, 0b000, 0b10001110);
+    setIDTEntry(&IDT[56], CODE_SEG, (uint64_t) &isr_56, 0b000, 0b10001110);
+    setIDTEntry(&IDT[57], CODE_SEG, (uint64_t) &isr_57, 0b000, 0b10001110);
+    setIDTEntry(&IDT[58], CODE_SEG, (uint64_t) &isr_58, 0b000, 0b10001110);
+    setIDTEntry(&IDT[59], CODE_SEG, (uint64_t) &isr_59, 0b000, 0b10001110);
+    setIDTEntry(&IDT[60], CODE_SEG, (uint64_t) &isr_60, 0b000, 0b10001110);
+    setIDTEntry(&IDT[61], CODE_SEG, (uint64_t) &isr_61, 0b000, 0b10001110);
+    setIDTEntry(&IDT[62], CODE_SEG, (uint64_t) &isr_62, 0b000, 0b10001110);
+    setIDTEntry(&IDT[63], CODE_SEG, (uint64_t) &isr_63, 0b000, 0b10001110);
+    setIDTEntry(&IDT[64], CODE_SEG, (uint64_t) &isr_64, 0b000, 0b10001110);
+    setIDTEntry(&IDT[65], CODE_SEG, (uint64_t) &isr_65, 0b000, 0b10001110);
+    setIDTEntry(&IDT[66], CODE_SEG, (uint64_t) &isr_66, 0b000, 0b10001110);
+    setIDTEntry(&IDT[67], CODE_SEG, (uint64_t) &isr_67, 0b000, 0b10001110);
+    setIDTEntry(&IDT[68], CODE_SEG, (uint64_t) &isr_68, 0b000, 0b10001110);
+    setIDTEntry(&IDT[69], CODE_SEG, (uint64_t) &isr_69, 0b000, 0b10001110);
+    setIDTEntry(&IDT[70], CODE_SEG, (uint64_t) &isr_70, 0b000, 0b10001110);
+    setIDTEntry(&IDT[71], CODE_SEG, (uint64_t) &isr_71, 0b000, 0b10001110);
+    setIDTEntry(&IDT[72], CODE_SEG, (uint64_t) &isr_72, 0b000, 0b10001110);
+    setIDTEntry(&IDT[73], CODE_SEG, (uint64_t) &isr_73, 0b000, 0b10001110);
+    setIDTEntry(&IDT[74], CODE_SEG, (uint64_t) &isr_74, 0b000, 0b10001110);
+    setIDTEntry(&IDT[75], CODE_SEG, (uint64_t) &isr_75, 0b000, 0b10001110);
+    setIDTEntry(&IDT[76], CODE_SEG, (uint64_t) &isr_76, 0b000, 0b10001110);
+    setIDTEntry(&IDT[77], CODE_SEG, (uint64_t) &isr_77, 0b000, 0b10001110);
+    setIDTEntry(&IDT[78], CODE_SEG, (uint64_t) &isr_78, 0b000, 0b10001110);
+    setIDTEntry(&IDT[79], CODE_SEG, (uint64_t) &isr_79, 0b000, 0b10001110);
+    setIDTEntry(&IDT[80], CODE_SEG, (uint64_t) &isr_80, 0b000, 0b10001110);
+    setIDTEntry(&IDT[81], CODE_SEG, (uint64_t) &isr_81, 0b000, 0b10001110);
+    setIDTEntry(&IDT[82], CODE_SEG, (uint64_t) &isr_82, 0b000, 0b10001110);
+    setIDTEntry(&IDT[83], CODE_SEG, (uint64_t) &isr_83, 0b000, 0b10001110);
+    setIDTEntry(&IDT[84], CODE_SEG, (uint64_t) &isr_84, 0b000, 0b10001110);
+    setIDTEntry(&IDT[85], CODE_SEG, (uint64_t) &isr_85, 0b000, 0b10001110);
+    setIDTEntry(&IDT[86], CODE_SEG, (uint64_t) &isr_86, 0b000, 0b10001110);
+    setIDTEntry(&IDT[87], CODE_SEG, (uint64_t) &isr_87, 0b000, 0b10001110);
+    setIDTEntry(&IDT[88], CODE_SEG, (uint64_t) &isr_88, 0b000, 0b10001110);
+    setIDTEntry(&IDT[89], CODE_SEG, (uint64_t) &isr_89, 0b000, 0b10001110);
+    setIDTEntry(&IDT[90], CODE_SEG, (uint64_t) &isr_90, 0b000, 0b10001110);
+    setIDTEntry(&IDT[91], CODE_SEG, (uint64_t) &isr_91, 0b000, 0b10001110);
+    setIDTEntry(&IDT[92], CODE_SEG, (uint64_t) &isr_92, 0b000, 0b10001110);
+    setIDTEntry(&IDT[93], CODE_SEG, (uint64_t) &isr_93, 0b000, 0b10001110);
+    setIDTEntry(&IDT[94], CODE_SEG, (uint64_t) &isr_94, 0b000, 0b10001110);
+    setIDTEntry(&IDT[95], CODE_SEG, (uint64_t) &isr_95, 0b000, 0b10001110);
+    setIDTEntry(&IDT[96], CODE_SEG, (uint64_t) &isr_96, 0b000, 0b10001110);
+    setIDTEntry(&IDT[97], CODE_SEG, (uint64_t) &isr_97, 0b000, 0b10001110);
+    setIDTEntry(&IDT[98], CODE_SEG, (uint64_t) &isr_98, 0b000, 0b10001110);
+    setIDTEntry(&IDT[99], CODE_SEG, (uint64_t) &isr_99, 0b000, 0b10001110);
+    setIDTEntry(&IDT[100], CODE_SEG, (uint64_t) &isr_100, 0b000, 0b10001110);
+    setIDTEntry(&IDT[101], CODE_SEG, (uint64_t) &isr_101, 0b000, 0b10001110);
+    setIDTEntry(&IDT[102], CODE_SEG, (uint64_t) &isr_102, 0b000, 0b10001110);
+    setIDTEntry(&IDT[103], CODE_SEG, (uint64_t) &isr_103, 0b000, 0b10001110);
+    setIDTEntry(&IDT[104], CODE_SEG, (uint64_t) &isr_104, 0b000, 0b10001110);
+    setIDTEntry(&IDT[105], CODE_SEG, (uint64_t) &isr_105, 0b000, 0b10001110);
+    setIDTEntry(&IDT[106], CODE_SEG, (uint64_t) &isr_106, 0b000, 0b10001110);
+    setIDTEntry(&IDT[107], CODE_SEG, (uint64_t) &isr_107, 0b000, 0b10001110);
+    setIDTEntry(&IDT[108], CODE_SEG, (uint64_t) &isr_108, 0b000, 0b10001110);
+    setIDTEntry(&IDT[109], CODE_SEG, (uint64_t) &isr_109, 0b000, 0b10001110);
+    setIDTEntry(&IDT[110], CODE_SEG, (uint64_t) &isr_110, 0b000, 0b10001110);
+    setIDTEntry(&IDT[111], CODE_SEG, (uint64_t) &isr_111, 0b000, 0b10001110);
+    setIDTEntry(&IDT[112], CODE_SEG, (uint64_t) &isr_112, 0b000, 0b10001110);
+    setIDTEntry(&IDT[113], CODE_SEG, (uint64_t) &isr_113, 0b000, 0b10001110);
+    setIDTEntry(&IDT[114], CODE_SEG, (uint64_t) &isr_114, 0b000, 0b10001110);
+    setIDTEntry(&IDT[115], CODE_SEG, (uint64_t) &isr_115, 0b000, 0b10001110);
+    setIDTEntry(&IDT[116], CODE_SEG, (uint64_t) &isr_116, 0b000, 0b10001110);
+    setIDTEntry(&IDT[117], CODE_SEG, (uint64_t) &isr_117, 0b000, 0b10001110);
+    setIDTEntry(&IDT[118], CODE_SEG, (uint64_t) &isr_118, 0b000, 0b10001110);
+    setIDTEntry(&IDT[119], CODE_SEG, (uint64_t) &isr_119, 0b000, 0b10001110);
+    setIDTEntry(&IDT[120], CODE_SEG, (uint64_t) &isr_120, 0b000, 0b10001110);
+    setIDTEntry(&IDT[121], CODE_SEG, (uint64_t) &isr_121, 0b000, 0b10001110);
+    setIDTEntry(&IDT[122], CODE_SEG, (uint64_t) &isr_122, 0b000, 0b10001110);
+    setIDTEntry(&IDT[123], CODE_SEG, (uint64_t) &isr_123, 0b000, 0b10001110);
+    setIDTEntry(&IDT[124], CODE_SEG, (uint64_t) &isr_124, 0b000, 0b10001110);
+    setIDTEntry(&IDT[125], CODE_SEG, (uint64_t) &isr_125, 0b000, 0b10001110);
+    setIDTEntry(&IDT[126], CODE_SEG, (uint64_t) &isr_126, 0b000, 0b10001110);
+    setIDTEntry(&IDT[127], CODE_SEG, (uint64_t) &isr_127, 0b000, 0b10001110);
+    setIDTEntry(&IDT[128], CODE_SEG, (uint64_t) &isr_128, 0b000, 0b10001110);
+    setIDTEntry(&IDT[129], CODE_SEG, (uint64_t) &isr_129, 0b000, 0b10001110);
+    setIDTEntry(&IDT[130], CODE_SEG, (uint64_t) &isr_130, 0b000, 0b10001110);
+    setIDTEntry(&IDT[131], CODE_SEG, (uint64_t) &isr_131, 0b000, 0b10001110);
+    setIDTEntry(&IDT[132], CODE_SEG, (uint64_t) &isr_132, 0b000, 0b10001110);
+    setIDTEntry(&IDT[133], CODE_SEG, (uint64_t) &isr_133, 0b000, 0b10001110);
+    setIDTEntry(&IDT[134], CODE_SEG, (uint64_t) &isr_134, 0b000, 0b10001110);
+    setIDTEntry(&IDT[135], CODE_SEG, (uint64_t) &isr_135, 0b000, 0b10001110);
+    setIDTEntry(&IDT[136], CODE_SEG, (uint64_t) &isr_136, 0b000, 0b10001110);
+    setIDTEntry(&IDT[137], CODE_SEG, (uint64_t) &isr_137, 0b000, 0b10001110);
+    setIDTEntry(&IDT[138], CODE_SEG, (uint64_t) &isr_138, 0b000, 0b10001110);
+    setIDTEntry(&IDT[139], CODE_SEG, (uint64_t) &isr_139, 0b000, 0b10001110);
+    setIDTEntry(&IDT[140], CODE_SEG, (uint64_t) &isr_140, 0b000, 0b10001110);
+    setIDTEntry(&IDT[141], CODE_SEG, (uint64_t) &isr_141, 0b000, 0b10001110);
+    setIDTEntry(&IDT[142], CODE_SEG, (uint64_t) &isr_142, 0b000, 0b10001110);
+    setIDTEntry(&IDT[143], CODE_SEG, (uint64_t) &isr_143, 0b000, 0b10001110);
+    setIDTEntry(&IDT[144], CODE_SEG, (uint64_t) &isr_144, 0b000, 0b10001110);
+    setIDTEntry(&IDT[145], CODE_SEG, (uint64_t) &isr_145, 0b000, 0b10001110);
+    setIDTEntry(&IDT[146], CODE_SEG, (uint64_t) &isr_146, 0b000, 0b10001110);
+    setIDTEntry(&IDT[147], CODE_SEG, (uint64_t) &isr_147, 0b000, 0b10001110);
+    setIDTEntry(&IDT[148], CODE_SEG, (uint64_t) &isr_148, 0b000, 0b10001110);
+    setIDTEntry(&IDT[149], CODE_SEG, (uint64_t) &isr_149, 0b000, 0b10001110);
+    setIDTEntry(&IDT[150], CODE_SEG, (uint64_t) &isr_150, 0b000, 0b10001110);
+    setIDTEntry(&IDT[151], CODE_SEG, (uint64_t) &isr_151, 0b000, 0b10001110);
+    setIDTEntry(&IDT[152], CODE_SEG, (uint64_t) &isr_152, 0b000, 0b10001110);
+    setIDTEntry(&IDT[153], CODE_SEG, (uint64_t) &isr_153, 0b000, 0b10001110);
+    setIDTEntry(&IDT[154], CODE_SEG, (uint64_t) &isr_154, 0b000, 0b10001110);
+    setIDTEntry(&IDT[155], CODE_SEG, (uint64_t) &isr_155, 0b000, 0b10001110);
+    setIDTEntry(&IDT[156], CODE_SEG, (uint64_t) &isr_156, 0b000, 0b10001110);
+    setIDTEntry(&IDT[157], CODE_SEG, (uint64_t) &isr_157, 0b000, 0b10001110);
+    setIDTEntry(&IDT[158], CODE_SEG, (uint64_t) &isr_158, 0b000, 0b10001110);
+    setIDTEntry(&IDT[159], CODE_SEG, (uint64_t) &isr_159, 0b000, 0b10001110);
+    setIDTEntry(&IDT[160], CODE_SEG, (uint64_t) &isr_160, 0b000, 0b10001110);
+    setIDTEntry(&IDT[161], CODE_SEG, (uint64_t) &isr_161, 0b000, 0b10001110);
+    setIDTEntry(&IDT[162], CODE_SEG, (uint64_t) &isr_162, 0b000, 0b10001110);
+    setIDTEntry(&IDT[163], CODE_SEG, (uint64_t) &isr_163, 0b000, 0b10001110);
+    setIDTEntry(&IDT[164], CODE_SEG, (uint64_t) &isr_164, 0b000, 0b10001110);
+    setIDTEntry(&IDT[165], CODE_SEG, (uint64_t) &isr_165, 0b000, 0b10001110);
+    setIDTEntry(&IDT[166], CODE_SEG, (uint64_t) &isr_166, 0b000, 0b10001110);
+    setIDTEntry(&IDT[167], CODE_SEG, (uint64_t) &isr_167, 0b000, 0b10001110);
+    setIDTEntry(&IDT[168], CODE_SEG, (uint64_t) &isr_168, 0b000, 0b10001110);
+    setIDTEntry(&IDT[169], CODE_SEG, (uint64_t) &isr_169, 0b000, 0b10001110);
+    setIDTEntry(&IDT[170], CODE_SEG, (uint64_t) &isr_170, 0b000, 0b10001110);
+    setIDTEntry(&IDT[171], CODE_SEG, (uint64_t) &isr_171, 0b000, 0b10001110);
+    setIDTEntry(&IDT[172], CODE_SEG, (uint64_t) &isr_172, 0b000, 0b10001110);
+    setIDTEntry(&IDT[173], CODE_SEG, (uint64_t) &isr_173, 0b000, 0b10001110);
+    setIDTEntry(&IDT[174], CODE_SEG, (uint64_t) &isr_174, 0b000, 0b10001110);
+    setIDTEntry(&IDT[175], CODE_SEG, (uint64_t) &isr_175, 0b000, 0b10001110);
+    setIDTEntry(&IDT[176], CODE_SEG, (uint64_t) &isr_176, 0b000, 0b10001110);
+    setIDTEntry(&IDT[177], CODE_SEG, (uint64_t) &isr_177, 0b000, 0b10001110);
+    setIDTEntry(&IDT[178], CODE_SEG, (uint64_t) &isr_178, 0b000, 0b10001110);
+    setIDTEntry(&IDT[179], CODE_SEG, (uint64_t) &isr_179, 0b000, 0b10001110);
+    setIDTEntry(&IDT[180], CODE_SEG, (uint64_t) &isr_180, 0b000, 0b10001110);
+    setIDTEntry(&IDT[181], CODE_SEG, (uint64_t) &isr_181, 0b000, 0b10001110);
+    setIDTEntry(&IDT[182], CODE_SEG, (uint64_t) &isr_182, 0b000, 0b10001110);
+    setIDTEntry(&IDT[183], CODE_SEG, (uint64_t) &isr_183, 0b000, 0b10001110);
+    setIDTEntry(&IDT[184], CODE_SEG, (uint64_t) &isr_184, 0b000, 0b10001110);
+    setIDTEntry(&IDT[185], CODE_SEG, (uint64_t) &isr_185, 0b000, 0b10001110);
+    setIDTEntry(&IDT[186], CODE_SEG, (uint64_t) &isr_186, 0b000, 0b10001110);
+    setIDTEntry(&IDT[187], CODE_SEG, (uint64_t) &isr_187, 0b000, 0b10001110);
+    setIDTEntry(&IDT[188], CODE_SEG, (uint64_t) &isr_188, 0b000, 0b10001110);
+    setIDTEntry(&IDT[189], CODE_SEG, (uint64_t) &isr_189, 0b000, 0b10001110);
+    setIDTEntry(&IDT[190], CODE_SEG, (uint64_t) &isr_190, 0b000, 0b10001110);
+    setIDTEntry(&IDT[191], CODE_SEG, (uint64_t) &isr_191, 0b000, 0b10001110);
+    setIDTEntry(&IDT[192], CODE_SEG, (uint64_t) &isr_192, 0b000, 0b10001110);
+    setIDTEntry(&IDT[193], CODE_SEG, (uint64_t) &isr_193, 0b000, 0b10001110);
+    setIDTEntry(&IDT[194], CODE_SEG, (uint64_t) &isr_194, 0b000, 0b10001110);
+    setIDTEntry(&IDT[195], CODE_SEG, (uint64_t) &isr_195, 0b000, 0b10001110);
+    setIDTEntry(&IDT[196], CODE_SEG, (uint64_t) &isr_196, 0b000, 0b10001110);
+    setIDTEntry(&IDT[197], CODE_SEG, (uint64_t) &isr_197, 0b000, 0b10001110);
+    setIDTEntry(&IDT[198], CODE_SEG, (uint64_t) &isr_198, 0b000, 0b10001110);
+    setIDTEntry(&IDT[199], CODE_SEG, (uint64_t) &isr_199, 0b000, 0b10001110);
+    setIDTEntry(&IDT[200], CODE_SEG, (uint64_t) &isr_200, 0b000, 0b10001110);
+    setIDTEntry(&IDT[201], CODE_SEG, (uint64_t) &isr_201, 0b000, 0b10001110);
+    setIDTEntry(&IDT[202], CODE_SEG, (uint64_t) &isr_202, 0b000, 0b10001110);
+    setIDTEntry(&IDT[203], CODE_SEG, (uint64_t) &isr_203, 0b000, 0b10001110);
+    setIDTEntry(&IDT[204], CODE_SEG, (uint64_t) &isr_204, 0b000, 0b10001110);
+    setIDTEntry(&IDT[205], CODE_SEG, (uint64_t) &isr_205, 0b000, 0b10001110);
+    setIDTEntry(&IDT[206], CODE_SEG, (uint64_t) &isr_206, 0b000, 0b10001110);
+    setIDTEntry(&IDT[207], CODE_SEG, (uint64_t) &isr_207, 0b000, 0b10001110);
+    setIDTEntry(&IDT[208], CODE_SEG, (uint64_t) &isr_208, 0b000, 0b10001110);
+    setIDTEntry(&IDT[209], CODE_SEG, (uint64_t) &isr_209, 0b000, 0b10001110);
+    setIDTEntry(&IDT[210], CODE_SEG, (uint64_t) &isr_210, 0b000, 0b10001110);
+    setIDTEntry(&IDT[211], CODE_SEG, (uint64_t) &isr_211, 0b000, 0b10001110);
+    setIDTEntry(&IDT[212], CODE_SEG, (uint64_t) &isr_212, 0b000, 0b10001110);
+    setIDTEntry(&IDT[213], CODE_SEG, (uint64_t) &isr_213, 0b000, 0b10001110);
+    setIDTEntry(&IDT[214], CODE_SEG, (uint64_t) &isr_214, 0b000, 0b10001110);
+    setIDTEntry(&IDT[215], CODE_SEG, (uint64_t) &isr_215, 0b000, 0b10001110);
+    setIDTEntry(&IDT[216], CODE_SEG, (uint64_t) &isr_216, 0b000, 0b10001110);
+    setIDTEntry(&IDT[217], CODE_SEG, (uint64_t) &isr_217, 0b000, 0b10001110);
+    setIDTEntry(&IDT[218], CODE_SEG, (uint64_t) &isr_218, 0b000, 0b10001110);
+    setIDTEntry(&IDT[219], CODE_SEG, (uint64_t) &isr_219, 0b000, 0b10001110);
+    setIDTEntry(&IDT[220], CODE_SEG, (uint64_t) &isr_220, 0b000, 0b10001110);
+    setIDTEntry(&IDT[221], CODE_SEG, (uint64_t) &isr_221, 0b000, 0b10001110);
+    setIDTEntry(&IDT[222], CODE_SEG, (uint64_t) &isr_222, 0b000, 0b10001110);
+    setIDTEntry(&IDT[223], CODE_SEG, (uint64_t) &isr_223, 0b000, 0b10001110);
+    setIDTEntry(&IDT[224], CODE_SEG, (uint64_t) &isr_224, 0b000, 0b10001110);
+    setIDTEntry(&IDT[225], CODE_SEG, (uint64_t) &isr_225, 0b000, 0b10001110);
+    setIDTEntry(&IDT[226], CODE_SEG, (uint64_t) &isr_226, 0b000, 0b10001110);
+    setIDTEntry(&IDT[227], CODE_SEG, (uint64_t) &isr_227, 0b000, 0b10001110);
+    setIDTEntry(&IDT[228], CODE_SEG, (uint64_t) &isr_228, 0b000, 0b10001110);
+    setIDTEntry(&IDT[229], CODE_SEG, (uint64_t) &isr_229, 0b000, 0b10001110);
+    setIDTEntry(&IDT[230], CODE_SEG, (uint64_t) &isr_230, 0b000, 0b10001110);
+    setIDTEntry(&IDT[231], CODE_SEG, (uint64_t) &isr_231, 0b000, 0b10001110);
+    setIDTEntry(&IDT[232], CODE_SEG, (uint64_t) &isr_232, 0b000, 0b10001110);
+    setIDTEntry(&IDT[233], CODE_SEG, (uint64_t) &isr_233, 0b000, 0b10001110);
+    setIDTEntry(&IDT[234], CODE_SEG, (uint64_t) &isr_234, 0b000, 0b10001110);
+    setIDTEntry(&IDT[235], CODE_SEG, (uint64_t) &isr_235, 0b000, 0b10001110);
+    setIDTEntry(&IDT[236], CODE_SEG, (uint64_t) &isr_236, 0b000, 0b10001110);
+    setIDTEntry(&IDT[237], CODE_SEG, (uint64_t) &isr_237, 0b000, 0b10001110);
+    setIDTEntry(&IDT[238], CODE_SEG, (uint64_t) &isr_238, 0b000, 0b10001110);
+    setIDTEntry(&IDT[239], CODE_SEG, (uint64_t) &isr_239, 0b000, 0b10001110);
+    setIDTEntry(&IDT[240], CODE_SEG, (uint64_t) &isr_240, 0b000, 0b10001110);
+    setIDTEntry(&IDT[241], CODE_SEG, (uint64_t) &isr_241, 0b000, 0b10001110);
+    setIDTEntry(&IDT[242], CODE_SEG, (uint64_t) &isr_242, 0b000, 0b10001110);
+    setIDTEntry(&IDT[243], CODE_SEG, (uint64_t) &isr_243, 0b000, 0b10001110);
+    setIDTEntry(&IDT[244], CODE_SEG, (uint64_t) &isr_244, 0b000, 0b10001110);
+    setIDTEntry(&IDT[245], CODE_SEG, (uint64_t) &isr_245, 0b000, 0b10001110);
+    setIDTEntry(&IDT[246], CODE_SEG, (uint64_t) &isr_246, 0b000, 0b10001110);
+    setIDTEntry(&IDT[247], CODE_SEG, (uint64_t) &isr_247, 0b000, 0b10001110);
+    setIDTEntry(&IDT[248], CODE_SEG, (uint64_t) &isr_248, 0b000, 0b10001110);
+    setIDTEntry(&IDT[249], CODE_SEG, (uint64_t) &isr_249, 0b000, 0b10001110);
+    setIDTEntry(&IDT[250], CODE_SEG, (uint64_t) &isr_250, 0b000, 0b10001110);
+    setIDTEntry(&IDT[251], CODE_SEG, (uint64_t) &isr_251, 0b000, 0b10001110);
+    setIDTEntry(&IDT[252], CODE_SEG, (uint64_t) &isr_252, 0b000, 0b10001110);
+    setIDTEntry(&IDT[253], CODE_SEG, (uint64_t) &isr_253, 0b000, 0b10001110);
+    setIDTEntry(&IDT[254], CODE_SEG, (uint64_t) &isr_254, 0b000, 0b10001110);
+    setIDTEntry(&IDT[255], CODE_SEG, (uint64_t) &isr_255, 0b000, 0b10001110);
+    }
+
+    //load the IDT
+    asm volatile(
+        ".intel_syntax noprefix\n"
+        "lidt [%[idt]]\n"
+        "sti\n"
+        ".att_syntax\n"
+        :
+        : [idt] "r"(&IDTPtr)
+        : "memory"
+    );
+
 
     while(ctx->GOP->Info->PixelFormat != 1);
 
-    //data section
     uint32_t versionMajor = 1;
     uint32_t versionMinor = 0;
     //font
@@ -1713,6 +1983,21 @@ typedef struct __attribute__((packed)) {
         0b00000000
     };
 
+    //get CPU vendor
+    uint32_t CPUVendor_r[4];
+    cpuid_string(0, CPUVendor_r);
+    uint8_t CPUVendor[13];
+    ((uint32_t*)CPUVendor)[0] = CPUVendor_r[1];
+    ((uint32_t*)CPUVendor)[1] = CPUVendor_r[3];
+    ((uint32_t*)CPUVendor)[2] = CPUVendor_r[2];
+    CPUVendor[12] = '\0';
+
+
+    //try to setup the keyboard
+    while(inb(0x64) & 2);
+    outb(0x64, 0xAE);
+
+
 
 
     //Display
@@ -1723,52 +2008,85 @@ typedef struct __attribute__((packed)) {
         ctx->GOP->FrameBufferBase = backbuf; //set the GOP address to backbuffer
     }
 
-    GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
-
     bool fill = true;
     uint32_t screenX = ctx->GOP->Info->HorizontalResolution - 1;
     uint32_t screenYFraction = ctx->GOP->Info->VerticalResolution / 5;
-    for(int i=0;i<200;i++){
-    GOPDrawRect(ctx->GOP, 0, 0, screenX, screenYFraction - 1, hex(0x55CDFC), fill);
-    GOPDrawRect(ctx->GOP, 0, screenYFraction, screenX, 2*screenYFraction - 1, hex(0xF7A8B8), fill);
-    GOPDrawRect(ctx->GOP, 0, 2*screenYFraction, screenX, 3*screenYFraction - 1, hex(0xFFFFFF), fill);
-    GOPDrawRect(ctx->GOP, 0, 3*screenYFraction, screenX, 4*screenYFraction - 1, hex(0xF7A8B8), fill);
-    GOPDrawRect(ctx->GOP, 0, 4*screenYFraction, screenX, 5*screenYFraction - 1, hex(0x55CDFC), fill);
-    }
-
     KERNEL_TEXT_OUTPUT title = {VGAfont, 8, 16, 4, 4, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
-    KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 2, 2, 0, 6, 0, 0, hex(0xFF10F0), hex(0x000000), false};
+    KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 2, 2, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
 
-    printf(ctx->GOP, &title, "Welcome to \r\n");
-    title.frontColor = 0xE50000;title.backColor = 0x000000;
-    printf(ctx->GOP, &title, "N");
-    title.frontColor = 0xFF8D00;title.backColor = 0x000000;
-    printf(ctx->GOP, &title, "u");
-    title.frontColor = 0xFFEE00;title.backColor = 0x000000;
-    printf(ctx->GOP, &title, "c");
-    title.frontColor = 0x028121;title.backColor = 0x000000;
-    printf(ctx->GOP, &title, "k");
-    title.frontColor = 0xFF10F0;title.backColor = 0x000000;
-    printf(ctx->GOP, &title, " ");
-    title.frontColor = 0x004CFF;title.backColor = 0x000000;
-    printf(ctx->GOP, &title, "O");
-    title.frontColor = 0x770088;title.backColor = 0x000000;
-    printf(ctx->GOP, &title, "S");
-    title.frontColor = 0xFF10F0;title.backColor = 0x000000;
+    int i=0;
+    int count=0;
+    while(true){
+        i ^= 1;
+        title.cursorY = i;
+        count++;
+        if(count > 10){
+            asm volatile(
+                ".intel_syntax noprefix\n"
+                "sti\n"
+                ".att_syntax\n"
+                :
+                :
+                :
+            );
+            break;
+        }
 
-    printf(ctx->GOP, &title, " Version %u.%u!\r\n", versionMajor, versionMinor);
+        
+        //clear screen
+        GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
 
-    printf(ctx->GOP, &ConOut, "From the %s to the %s to the %s to the %s\r\nWhere's my crown, that's my bling, always %f when I ring\r\n", "screen", "ring", "pen", "king", 1.7);
-    printf(ctx->GOP, &ConOut, "It's pride month!\r\n");
 
-    printf(ctx->GOP, &ConOut, "Code segment: %x\r\nData segment: %x\r\n", CODE_SEG, DATA_SEG);
+        GOPDrawRect(ctx->GOP, 0, 0, screenX, screenYFraction - 1, hex(0x55CDFC), fill);
+        GOPDrawRect(ctx->GOP, 0, screenYFraction, screenX, 2*screenYFraction - 1, hex(0xF7A8B8), fill);
+        GOPDrawRect(ctx->GOP, 0, 2*screenYFraction, screenX, 3*screenYFraction - 1, hex(0xFFFFFF), fill);
+        GOPDrawRect(ctx->GOP, 0, 3*screenYFraction, screenX, 4*screenYFraction - 1, hex(0xF7A8B8), fill);
+        GOPDrawRect(ctx->GOP, 0, 4*screenYFraction, screenX, 5*screenYFraction - 1, hex(0x55CDFC), fill);
 
-    
-    memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
+
+        //print cpu vendor
+        printf(ctx->GOP, &ConOut, "CPU vendor: %s\r\n", CPUVendor);
+
+        printf(ctx->GOP, &ConOut, "From the %s to the %s to the %s to the %s\r\nWhere's my crown, that's my bling, always %f when I ring\r\n", "screen", "ring", "pen", "king", 1.7);
+        printf(ctx->GOP, &ConOut, "It's pride month!\r\n");
+
+        printf(ctx->GOP, &ConOut, "Code segment: %x\r\nData segment: %x\r\n", CODE_SEG, DATA_SEG);
+
+
+        printf(ctx->GOP, &title, "Welcome to \r\n");
+        title.frontColor = 0xE50000;title.backColor = 0x000000;
+        printf(ctx->GOP, &title, "N");
+        title.frontColor = 0xFF8D00;title.backColor = 0x000000;
+        printf(ctx->GOP, &title, "u");
+        title.frontColor = 0xFFEE00;title.backColor = 0x000000;
+        printf(ctx->GOP, &title, "c");
+        title.frontColor = 0x028121;title.backColor = 0x000000;
+        printf(ctx->GOP, &title, "k");
+        title.frontColor = 0xFF10F0;title.backColor = 0x000000;
+        printf(ctx->GOP, &title, " ");
+        title.frontColor = 0x004CFF;title.backColor = 0x000000;
+        printf(ctx->GOP, &title, "O");
+        title.frontColor = 0x770088;title.backColor = 0x000000;
+        printf(ctx->GOP, &title, "S");
+        title.frontColor = 0xFF10F0;title.backColor = 0x000000;
+
+        printf(ctx->GOP, &title, " Version %u.%u!\r\n", versionMajor, versionMinor);
+
+
+
+        memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
+        for(uint64_t i=0;i<10;i++);
+    }
     while(true);
 }
 
-void setIDTEntry(IDT_Entry* entry, uint64_t offset, uint16_t segment, uint8_t ISTOffset, uint8_t attributes){
+
+
+
+
+
+
+void setIDTEntry(IDT_Entry* entry, uint16_t segment, uint64_t offset, uint8_t ISTOffset, uint8_t attributes){
     entry->offset_low = (uint16_t)(offset & 0xFFFF);
     entry->segment = segment;
     entry->ist = (uint8_t)(ISTOffset & 0b111); //only last 3 bits are the ist, 5 high bits set to 0 because reserved
@@ -1777,7 +2095,6 @@ void setIDTEntry(IDT_Entry* entry, uint64_t offset, uint16_t segment, uint8_t IS
     entry->offset_high = (uint32_t)((offset >> 32) & 0xFFFFFFFF);
     entry->reserved = 0;
 }
-
 void setGDTEntry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags){
     entry->limit_low = (uint16_t)(limit & 0xFFFF);
     entry->base_low = (uint16_t)(base & 0xFFFF);
@@ -1786,7 +2103,6 @@ void setGDTEntry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access
     entry->limit__flags = (uint8_t)(((limit >> 16) & 0xF) | (flags << 4));
     entry->base_high = (uint8_t)(base >> 24);
 }
-
 void triple_fault(){
     uint64_t egg = 0;
     asm volatile (
@@ -1798,7 +2114,6 @@ void triple_fault(){
         : [eggman] "r"(&egg)
     );
 }
-
 void* memcpy(void* source, void* dest, uint64_t size){
     uint8_t* d = (uint8_t*) dest;
     uint8_t* s = (uint8_t*) source;
@@ -2070,3 +2385,1104 @@ static inline uint32_t hex(uint32_t hex){
     return hex | 0xFF000000;
 }
 
+static inline void outb(uint16_t port, uint8_t value){
+    asm volatile (
+        "outb %0, %1"
+        :
+        : "a"(value), "Nd"(port)
+    );
+}
+static inline void outw(uint16_t port, uint16_t value){
+    asm volatile (
+        "outw %0, %1"
+        :
+        : "a"(value), "Nd"(port)
+    );
+}
+static inline void outl(uint16_t port, uint32_t value){
+    asm volatile (
+        "outl %0, %1"
+        :
+        : "a"(value), "Nd"(port)
+    );
+}
+static inline uint8_t inb(uint16_t port){
+    uint8_t ret;
+    asm volatile (
+        "inb %1, %0"
+        : "=a"(ret)
+        : "Nd"(port)
+    );
+    return ret;
+}
+static inline uint16_t inw(uint16_t port){
+    uint16_t ret;
+    asm volatile (
+        "inw %1, %0"
+        : "=a"(ret)
+        : "Nd"(port)
+    );
+    return ret;
+}
+static inline uint32_t inl(uint16_t port){
+    uint32_t ret;
+    asm volatile (
+        "inl %1, %0"
+        : "=a"(ret)
+        : "Nd"(port)
+    );
+    return ret;
+}
+static inline void io_wait(){
+    outb(0x80, 0);
+}
+static inline void cpuid(int code, uint32_t* a, uint32_t* d){
+    asm volatile("cpuid" : "=a"(*a), "=d"(*d) : "0"(code) : "ebx", "ecx");
+}
+static inline int cpuid_string(int code, uint32_t where[4]){
+  asm volatile("cpuid":"=a"(*where),"=b"(*(where+1)),
+               "=c"(*(where+2)),"=d"(*(where+3)):"a"(code));
+  return (int)where[0];
+}
+uint64_t rdtsc(){
+    uint32_t low, high;
+    asm volatile("rdtsc":"=a"(low),"=d"(high));
+    return ((uint64_t)high << 32) | low;
+}
+
+
+
+
+__attribute__((noreturn))
+void isr_0(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_1(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_2(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_3(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_4(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_5(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_6(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_7(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_8(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_9(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_10(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_11(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_12(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_13(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_14(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_15(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_16(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_17(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_18(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_19(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_20(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_21(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_22(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_23(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_24(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_25(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_26(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_27(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_28(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_29(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_30(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_31(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_32(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_33(){
+
+
+
+
+
+
+
+
+
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_34(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_35(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_36(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_37(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_38(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_39(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_40(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_41(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_42(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_43(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_44(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_45(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_46(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_47(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_48(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_49(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_50(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_51(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_52(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_53(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_54(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_55(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_56(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_57(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_58(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_59(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_60(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_61(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_62(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_63(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_64(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_65(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_66(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_67(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_68(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_69(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_70(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_71(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_72(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_73(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_74(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_75(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_76(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_77(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_78(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_79(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_80(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_81(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_82(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_83(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_84(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_85(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_86(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_87(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_88(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_89(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_90(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_91(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_92(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_93(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_94(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_95(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_96(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_97(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_98(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_99(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_100(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_101(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_102(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_103(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_104(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_105(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_106(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_107(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_108(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_109(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_110(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_111(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_112(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_113(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_114(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_115(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_116(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_117(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_118(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_119(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_120(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_121(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_122(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_123(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_124(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_125(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_126(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_127(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_128(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_129(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_130(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_131(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_132(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_133(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_134(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_135(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_136(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_137(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_138(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_139(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_140(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_141(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_142(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_143(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_144(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_145(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_146(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_147(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_148(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_149(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_150(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_151(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_152(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_153(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_154(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_155(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_156(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_157(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_158(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_159(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_160(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_161(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_162(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_163(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_164(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_165(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_166(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_167(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_168(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_169(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_170(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_171(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_172(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_173(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_174(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_175(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_176(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_177(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_178(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_179(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_180(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_181(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_182(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_183(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_184(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_185(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_186(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_187(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_188(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_189(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_190(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_191(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_192(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_193(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_194(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_195(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_196(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_197(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_198(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_199(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_200(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_201(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_202(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_203(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_204(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_205(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_206(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_207(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_208(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_209(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_210(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_211(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_212(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_213(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_214(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_215(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_216(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_217(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_218(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_219(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_220(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_221(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_222(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_223(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_224(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_225(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_226(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_227(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_228(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_229(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_230(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_231(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_232(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_233(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_234(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_235(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_236(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_237(){
+    asm volatile("cli; hlt");
+}
+__attribute__((noreturn))
+void isr_238(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_239(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_240(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_241(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_242(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_243(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_244(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_245(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_246(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_247(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_248(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_249(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_250(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_251(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_252(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_253(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_254(){
+    asm volatile("iretq");
+}
+__attribute__((noreturn))
+void isr_255(){
+    asm volatile("iretq");
+}

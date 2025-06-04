@@ -86,7 +86,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     
     EFI_PHYSICAL_ADDRESS fb2_addr; //backbuffer
     EFI_PHYSICAL_ADDRESS kernel_stack; //kernel stack(not top, start)
-    uint64_t kernel_stack_size = 256; //size in pages
+    uint64_t kernel_stack_size = 512; //size in pages, 2MiB
 
     while(true){
         //keyboard input
