@@ -16,6 +16,7 @@ typedef struct{
     EFI_PHYSICAL_ADDRESS               fb; //backbuffer in bootloader, frontbuffer in kernel
     EFI_PHYSICAL_ADDRESS               kernelStack;
     uint64_t                           kernelStackSize;
+    EFI_PHYSICAL_ADDRESS               file;
 } KERNEL_CONTEXT_TABLE;
 
 void closeFile(EFI_FILE_PROTOCOL* file);

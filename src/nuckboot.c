@@ -57,7 +57,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
 
     //very good message
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load Nuck OS kernel\r\nF5 to select GOP mode\r\nF6 to set GOP, get memory map and run Nuck OS kernel\r\n");
+    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load Nuck OS kernel and data\r\nF5 to select GOP mode\r\nF6 to set GOP, get memory map and run Nuck OS kernel\r\n");
 
     //variables used in main logic
     UINTN MemoryMapSize = 0; //size of the memory map in bytes
@@ -71,6 +71,10 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     EFI_FILE_PROTOCOL* kernel_file;
     UINT64 kernel_size;
     EFI_PHYSICAL_ADDRESS kernel_addr;
+
+    EFI_FILE_PROTOCOL* file;
+    UINT64 file_size;
+    EFI_PHYSICAL_ADDRESS file_addr;
 
     //GOP variables
     EFI_GRAPHICS_OUTPUT_PROTOCOL* GOP;
@@ -112,21 +116,31 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     printMemoryMap(ST, MemoryMapSize, MemoryMap, MapKey, DescriptorSize, DescriptorVersion);
                     break;
                 case 0x0E:
-                    Print(L"loading kernel\r\n");
+                    Print(L"loading kernel and data\r\n");
                     root = openVolume(ST, ImageHandle); //opens root of filesystem of boot device
+
                     //open file
-                    kernel_file = openFile(root, L"kernel.bin"); 
+                    kernel_file = openFile(root, L"kernel.bin");
                     //get file size
                     kernel_size = getFileSize(ST, kernel_file);
-
                     //load kernel binary
                     status = uefi_call_wrapper(ST->BootServices->AllocatePool, 3, EfiLoaderData, kernel_size, &kernel_addr);
                     //read file to kernel address
                     uefi_call_wrapper(kernel_file->Read, 3, kernel_file, &kernel_size, kernel_addr);  
                     
-                    Print(L"kernel load success\r\n");
+                    //open file
+                    file = openFile(root, L"video.nvideo");
+                    //get file size
+                    file_size = getFileSize(ST, file);
+                    //load kernel binary
+                    status = uefi_call_wrapper(ST->BootServices->AllocatePool, 3, EfiLoaderData, file_size, &file_addr);
+                    //read file to kernel address
+                    uefi_call_wrapper(kernel_file->Read, 3, file, &file_size, file_addr);  
+
                     //close file
                     closeFile(kernel_file);
+                    closeFile(file);
+                    Print(L"kernel & data load success\r\n");
                     break;
                 case 0x0F:
                     //set GOP
@@ -225,7 +239,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         GOP->Mode,
         fb2_addr,
         kernel_stack,
-        kernel_stack_size
+        kernel_stack_size,
+        file_addr
     };
 
     asm volatile(
@@ -259,7 +274,7 @@ UINT64 getFileSize(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* file){
     info = LibFileInfo(file);
     ret = info->FileSize;
     uefi_call_wrapper(ST->BootServices->FreePool, 1, info);
-    Print(L"kernel size: %d\r\n", ret);
+    Print(L"file size: %d\r\n", ret);
     return ret;
 }
 

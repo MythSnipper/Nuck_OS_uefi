@@ -5,3 +5,4 @@ mnt/
 ovmf/
 shim/
 usbroot/
+data/

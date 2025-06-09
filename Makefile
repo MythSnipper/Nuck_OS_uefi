@@ -94,6 +94,8 @@ build:
 	cp build/nuckboot.efi usbroot/EFI/BOOT/BOOTX64.EFI
 	cp build/kernel-full.bin usbroot/kernel.bin
 
+	cp data/*.nvideo usbroot/
+
 clean:
 	sudo rm -rf build/*
 	sudo rm -rf usbroot/*
@@ -140,10 +142,6 @@ img:
 	\
 	sudo losetup -d $$LOOP_DEV
 
-
-
-
-
 copydisk:
 	lsblk
 
@@ -183,8 +181,11 @@ qemu-slow:
 	-usb -device usb-storage,drive=nuckusb \
     -drive file=$(DEVICE),if=none,format=raw,id=nuckusb
 
-
-
+convert-video-yt:
+	rm -rf data/frames/*
+	mkdir -p data/frames
+	ffmpeg -i data/video.mp4 -vf scale=640:360 -r 2 data/frames/frame_%04d.bmp
+	python scripts/convert.py
 
 
 

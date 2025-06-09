@@ -6,6 +6,8 @@
 #include <efilib.h>
 
 
+
+
 typedef struct __attribute__((packed)) {
     uint16_t offset_low;
     uint16_t segment;
@@ -61,15 +63,29 @@ typedef struct{
     EFI_PHYSICAL_ADDRESS               fb; //backbuffer in bootloader, frontbuffer in kernel
     EFI_PHYSICAL_ADDRESS               kernelStack;
     uint64_t                           kernelStackSize;
+    EFI_PHYSICAL_ADDRESS               file;
 } KERNEL_CONTEXT_TABLE;
 
 typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;
 
 
+void PIC_sendEOI(uint8_t irq);
+void PIC_remap(uint8_t offset1, uint8_t offset2);
+void PIC_disable();
+void IRQ_set_mask(uint8_t IRQline);
+void IRQ_clear_mask(uint8_t IRQline);
+static uint16_t __pic_get_irq_reg(int ocw3);
+uint16_t pic_get_irr();
+uint16_t pic_get_isr();
+
+
+
+
 void setIDTEntry(IDT_Entry* entry, uint16_t segment, uint64_t offset, uint8_t ISTOffset, uint8_t attributes);
 void setGDTEntry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags);
 void triple_fault();
-void* memcpy(void* source, void* dest, uint64_t size);
+
+
 void printFloat(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec);
 void printUfloat(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec);
 void printInt(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, int64_t num, uint8_t base);
@@ -79,6 +95,9 @@ void printString(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t* string);
 void printChar(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t ascii_char);
 void GOPDrawRect(EFI_GOP* GOP, uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color, uint8_t fill);
 void GOPPutPixel(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t color);
+
+
+void* memcpy(void* source, void* dest, uint64_t size);
 static inline uint32_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 static inline uint32_t hex(uint32_t hex);
 static inline void outb(uint16_t port, uint8_t value);

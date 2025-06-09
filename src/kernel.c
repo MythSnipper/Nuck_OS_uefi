@@ -352,7 +352,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     asm volatile(
         ".intel_syntax noprefix\n"
         "lidt [%[idt]]\n"
-        "sti\n"
         ".att_syntax\n"
         :
         : [idt] "r"(&IDTPtr)
@@ -1990,12 +1989,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     ((uint32_t*)CPUVendor)[0] = CPUVendor_r[1];
     ((uint32_t*)CPUVendor)[1] = CPUVendor_r[3];
     ((uint32_t*)CPUVendor)[2] = CPUVendor_r[2];
-    CPUVendor[12] = '\0';
-
-
-    //try to setup the keyboard
-    while(inb(0x64) & 2);
-    outb(0x64, 0xAE);
+    CPUVendor[12] = 0;
 
 
 
@@ -2013,29 +2007,25 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     uint32_t screenYFraction = ctx->GOP->Info->VerticalResolution / 5;
     KERNEL_TEXT_OUTPUT title = {VGAfont, 8, 16, 4, 4, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
     KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 2, 2, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
+    
+    uint32_t videoX = 0;
+    uint32_t videoY = 0;
+    
+    uint8_t* data = (uint8_t*)ctx->file;
+    uint32_t width = *(uint32_t*)data;
+    uint32_t height = *(uint32_t*)data+4;
+    uint32_t frameCount = *(uint32_t*)data+8;
+    uint32_t fps = *(uint32_t*)data+12;
+    uint32_t scale = *(uint32_t*)data+16;
+    data += 20;
+    uint32_t frame = 0;
 
-    int i=0;
-    int count=0;
+
     while(true){
-        i ^= 1;
-        title.cursorY = i;
-        count++;
-        if(count > 10){
-            asm volatile(
-                ".intel_syntax noprefix\n"
-                "sti\n"
-                ".att_syntax\n"
-                :
-                :
-                :
-            );
-            break;
-        }
-
-        
+        title = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 4, 4, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
+        ConOut = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 2, 2, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
         //clear screen
         GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
-
 
         GOPDrawRect(ctx->GOP, 0, 0, screenX, screenYFraction - 1, hex(0x55CDFC), fill);
         GOPDrawRect(ctx->GOP, 0, screenYFraction, screenX, 2*screenYFraction - 1, hex(0xF7A8B8), fill);
@@ -2043,15 +2033,10 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         GOPDrawRect(ctx->GOP, 0, 3*screenYFraction, screenX, 4*screenYFraction - 1, hex(0xF7A8B8), fill);
         GOPDrawRect(ctx->GOP, 0, 4*screenYFraction, screenX, 5*screenYFraction - 1, hex(0x55CDFC), fill);
 
-
-        //print cpu vendor
-        printf(ctx->GOP, &ConOut, "CPU vendor: %s\r\n", CPUVendor);
-
         printf(ctx->GOP, &ConOut, "From the %s to the %s to the %s to the %s\r\nWhere's my crown, that's my bling, always %f when I ring\r\n", "screen", "ring", "pen", "king", 1.7);
         printf(ctx->GOP, &ConOut, "It's pride month!\r\n");
 
-        printf(ctx->GOP, &ConOut, "Code segment: %x\r\nData segment: %x\r\n", CODE_SEG, DATA_SEG);
-
+        printf(ctx->GOP, &ConOut, "Code segment: %x\r\nData segment: %x\r\nCPU Vendor: %s\r\n", CODE_SEG, DATA_SEG, CPUVendor);
 
         printf(ctx->GOP, &title, "Welcome to \r\n");
         title.frontColor = 0xE50000;title.backColor = 0x000000;
@@ -2072,12 +2057,135 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
         printf(ctx->GOP, &title, " Version %u.%u!\r\n", versionMajor, versionMinor);
 
+        //draw frame
+        uint8_t* framePtr;
+        uint8_t* linePtr;
+        uint32_t pixelColor;
+        if(frame < frameCount){
+            framePtr = (uint8_t*)(data + frame * (3 * width * height)); //pointer to the first pixel of frame
+            for(uint32_t line=0;line < height;line++){
+                linePtr = (uint8_t*)(framePtr + line * (3 * width));
+                for(uint32_t pixel=0;pixel < width;pixel++){
+                    pixelColor = *(uint32_t*)(linePtr + 3 * pixel);
+                    pixelColor |= 0xFF000000;
+                    GOPPutPixel(ctx->GOP, videoX + pixel, videoY + line, pixelColor);
+                }
+            }
+        }
+        frame++;
+        
 
 
+
+        //copy framebuffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
-        for(uint64_t i=0;i<10;i++);
     }
     while(true);
+}
+
+
+//PIC definitions
+#define PIC1		0x20		/* IO base address for master PIC */
+#define PIC2		0xA0		/* IO base address for slave PIC */
+#define PIC1_COMMAND	PIC1
+#define PIC1_DATA	(PIC1+1)
+#define PIC2_COMMAND	PIC2
+#define PIC2_DATA	(PIC2+1)
+#define PIC_EOI		0x20		/* End-of-interrupt command code */
+//PIC functions
+void PIC_sendEOI(uint8_t irq){
+    if(irq >= 8){ //slave PIC
+        outb(PIC2_COMMAND, PIC_EOI);
+    }
+    outb(PIC1_COMMAND, PIC_EOI); //master PIC
+}
+
+#define ICW1_ICW4	0x01		/* Indicates that ICW4 will be present */
+#define ICW1_SINGLE	0x02		/* Single (cascade) mode */
+#define ICW1_INTERVAL4	0x04		/* Call address interval 4 (8) */
+#define ICW1_LEVEL	0x08		/* Level triggered (edge) mode */
+#define ICW1_INIT	0x10		/* Initialization - required! */
+
+#define ICW4_8086	0x01		/* 8086/88 (MCS-80/85) mode */
+#define ICW4_AUTO	0x02		/* Auto (normal) EOI */
+#define ICW4_BUF_SLAVE	0x08		/* Buffered mode/slave */
+#define ICW4_BUF_MASTER	0x0C		/* Buffered mode/master */
+#define ICW4_SFNM	0x10		/* Special fully nested (not) */
+/* reinitialize the PIC controllers, giving them specified vector offsets
+   rather than 8h and 70h, as configured by default
+arguments:
+	offset1 - vector offset for master PIC
+		vectors on the master become offset1..offset1+7
+	offset2 - same for slave PIC: offset2..offset2+7
+*/
+void PIC_remap(uint8_t offset1, uint8_t offset2){
+	outb(PIC1_COMMAND, ICW1_INIT | ICW1_ICW4);  // starts the initialization sequence (in cascade mode)
+	io_wait();
+	outb(PIC2_COMMAND, ICW1_INIT | ICW1_ICW4);
+	io_wait();
+	outb(PIC1_DATA, offset1);                 // ICW2: Master PIC vector offset
+	io_wait();
+	outb(PIC2_DATA, offset2);                 // ICW2: Slave PIC vector offset
+	io_wait();
+	outb(PIC1_DATA, 4);                       // ICW3: tell Master PIC that there is a slave PIC at IRQ2 (0000 0100)
+	io_wait();
+	outb(PIC2_DATA, 2);                       // ICW3: tell Slave PIC its cascade identity (0000 0010)
+	io_wait();
+	outb(PIC1_DATA, ICW4_8086);               // ICW4: have the PICs use 8086 mode (and not 8080 mode)
+	io_wait();
+	outb(PIC2_DATA, ICW4_8086);
+	io_wait();
+	// Unmask both PICs.
+	outb(PIC1_DATA, 0);
+	outb(PIC2_DATA, 0);
+}
+void PIC_disable(){
+    outb(PIC1_DATA, 0xff);
+    outb(PIC2_DATA, 0xff);
+}
+void IRQ_set_mask(uint8_t IRQline){
+    uint16_t port;
+    uint8_t value;
+
+    if(IRQline < 8) {
+        port = PIC1_DATA;
+    } else {
+        port = PIC2_DATA;
+        IRQline -= 8;
+    }
+    value = inb(port) | (1 << IRQline);
+    outb(port, value);        
+}
+void IRQ_clear_mask(uint8_t IRQline){
+    uint16_t port;
+    uint8_t value;
+
+    if(IRQline < 8) {
+        port = PIC1_DATA;
+    } else {
+        port = PIC2_DATA;
+        IRQline -= 8;
+    }
+    value = inb(port) & ~(1 << IRQline);
+    outb(port, value);        
+}
+#define PIC_READ_IRR                0x0a    /* OCW3 irq ready next CMD read */
+#define PIC_READ_ISR                0x0b    /* OCW3 irq service next CMD read */
+/* Helper func */
+static uint16_t __pic_get_irq_reg(int ocw3){
+    /* OCW3 to PIC CMD to get the register values.  PIC2 is chained, and
+     * represents IRQs 8-15.  PIC1 is IRQs 0-7, with 2 being the chain */
+    outb(PIC1_COMMAND, ocw3);
+    outb(PIC2_COMMAND, ocw3);
+    return (inb(PIC2_COMMAND) << 8) | inb(PIC1_COMMAND);
+}
+/* Returns the combined value of the cascaded PICs irq request register */
+uint16_t pic_get_irr(){
+    return __pic_get_irq_reg(PIC_READ_IRR);
+}
+/* Returns the combined value of the cascaded PICs in-service register */
+uint16_t pic_get_isr(){
+    return __pic_get_irq_reg(PIC_READ_ISR);
 }
 
 
@@ -2086,6 +2194,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
 
 
+
+//GDT/IDT functions, general functions
 void setIDTEntry(IDT_Entry* entry, uint16_t segment, uint64_t offset, uint8_t ISTOffset, uint8_t attributes){
     entry->offset_low = (uint16_t)(offset & 0xFFFF);
     entry->segment = segment;
@@ -2114,21 +2224,8 @@ void triple_fault(){
         : [eggman] "r"(&egg)
     );
 }
-void* memcpy(void* source, void* dest, uint64_t size){
-    uint8_t* d = (uint8_t*) dest;
-    uint8_t* s = (uint8_t*) source;
-    while(size > sizeof(uint64_t)){ //64 bit copy
-        *(uint64_t*)d = *(uint64_t*)s;
-        s += sizeof(uint64_t);
-        d += sizeof(uint64_t);
-        size -= sizeof(uint64_t);
-    }
-    while(size--){
-        *d++ = *s++;
-    }
-    return dest;
-}
 
+//graphical functions
 void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t* str, ...){
     va_list args;
     va_start(args, str);
@@ -2385,6 +2482,21 @@ static inline uint32_t hex(uint32_t hex){
     return hex | 0xFF000000;
 }
 
+//general functions
+void* memcpy(void* source, void* dest, uint64_t size){
+    uint8_t* d = (uint8_t*) dest;
+    uint8_t* s = (uint8_t*) source;
+    while(size > sizeof(uint64_t)){ //64 bit copy
+        *(uint64_t*)d = *(uint64_t*)s;
+        s += sizeof(uint64_t);
+        d += sizeof(uint64_t);
+        size -= sizeof(uint64_t);
+    }
+    while(size--){
+        *d++ = *s++;
+    }
+    return dest;
+}
 static inline void outb(uint16_t port, uint8_t value){
     asm volatile (
         "outb %0, %1"
@@ -2453,1036 +2565,786 @@ uint64_t rdtsc(){
 
 
 
-__attribute__((noreturn))
+
+
+
+
 void isr_0(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_1(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_2(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_3(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_4(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_5(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_6(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_7(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_8(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_9(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_10(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_11(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_12(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_13(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_14(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_15(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_16(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_17(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_18(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_19(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_20(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_21(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_22(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_23(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_24(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_25(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_26(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_27(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_28(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_29(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_30(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_31(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
+
+
 void isr_32(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_33(){
-
-
-
-
-
-
-
-
 
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_34(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_35(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_36(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_37(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_38(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_39(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_40(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_41(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_42(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_43(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_44(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_45(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_46(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_47(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_48(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_49(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_50(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_51(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_52(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_53(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_54(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_55(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_56(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_57(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_58(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_59(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_60(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_61(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_62(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_63(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_64(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_65(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_66(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_67(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_68(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_69(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_70(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_71(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_72(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_73(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_74(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_75(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_76(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_77(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_78(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_79(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_80(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_81(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_82(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_83(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_84(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_85(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_86(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_87(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_88(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_89(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_90(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_91(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_92(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_93(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_94(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_95(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_96(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_97(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_98(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_99(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_100(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_101(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_102(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_103(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_104(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_105(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_106(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_107(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_108(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_109(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_110(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_111(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_112(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_113(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_114(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_115(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_116(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_117(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_118(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_119(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_120(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_121(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_122(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_123(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_124(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_125(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_126(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_127(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_128(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_129(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_130(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_131(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_132(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_133(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_134(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_135(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_136(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_137(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_138(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_139(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_140(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_141(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_142(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_143(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_144(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_145(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_146(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_147(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_148(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_149(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_150(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_151(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_152(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_153(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_154(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_155(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_156(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_157(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_158(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_159(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_160(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_161(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_162(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_163(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_164(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_165(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_166(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_167(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_168(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_169(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_170(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_171(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_172(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_173(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_174(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_175(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_176(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_177(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_178(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_179(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_180(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_181(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_182(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_183(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_184(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_185(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_186(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_187(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_188(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_189(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_190(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_191(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_192(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_193(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_194(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_195(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_196(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_197(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_198(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_199(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_200(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_201(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_202(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_203(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_204(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_205(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_206(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_207(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_208(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_209(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_210(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_211(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_212(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_213(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_214(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_215(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_216(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_217(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_218(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_219(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_220(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_221(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_222(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_223(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_224(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_225(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_226(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_227(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_228(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_229(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_230(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_231(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_232(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_233(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_234(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_235(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_236(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_237(){
-    asm volatile("cli; hlt");
+    asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_238(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_239(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_240(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_241(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_242(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_243(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_244(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_245(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_246(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_247(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_248(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_249(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_250(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_251(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_252(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_253(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_254(){
     asm volatile("iretq");
 }
-__attribute__((noreturn))
 void isr_255(){
     asm volatile("iretq");
 }
+
+
+
+
+
+
+
+
