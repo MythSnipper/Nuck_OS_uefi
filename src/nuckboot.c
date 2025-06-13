@@ -57,7 +57,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
 
     //very good message
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load Nuck OS kernel and data\r\nF5 to select GOP mode\r\nF6 to set GOP, get memory map and run Nuck OS kernel\r\n");
+    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load Nuck OS kernel and data\r\nF5 to select GOP mode\r\nF6 to manually select GOP mode\r\nF7 to set GOP, get memory map and run Nuck OS kernel\r\n");
 
     //variables used in main logic
     UINTN MemoryMapSize = 0; //size of the memory map in bytes
@@ -77,6 +77,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     EFI_PHYSICAL_ADDRESS file_addr;
 
     //GOP variables
+    EFI_GUID GOPGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
     EFI_GRAPHICS_OUTPUT_PROTOCOL* GOP;
     EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* GOPInfo;
     UINTN GOPInfoSize;
@@ -144,7 +145,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     break;
                 case 0x0F:
                     //set GOP
-                    EFI_GUID GOPGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
                     status = uefi_call_wrapper(ST->BootServices->LocateProtocol, 3, &GOPGuid, NULL, (void**) &GOP);
                     if(EFI_ERROR(status)){
                         Print(L"No GOP\r\n");
@@ -197,6 +197,47 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     Print(L"Selected:\r\nmode %d: %dx%d format %x%s\r\n", bestModeNum, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, bestModeNum == GOPNativeMode ? L"(current)" : L"");
                     break;
                 case 0x10:
+                    //set GOP
+                    status = uefi_call_wrapper(ST->BootServices->LocateProtocol, 3, &GOPGuid, NULL, (void**) &GOP);
+                    if(EFI_ERROR(status)){
+                        Print(L"No GOP\r\n");
+                    }
+                    status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP->Mode==NULL?0:GOP->Mode->Mode, &GOPInfoSize, &GOPInfo);
+                    //get the current video mode
+                    if(status == EFI_NOT_STARTED){
+                        status = uefi_call_wrapper(GOP->SetMode, 2, GOP, 0);
+                    }
+                    if(EFI_ERROR(status)){
+                        Print(L"Unable to get GOP native mode\r\n");
+                    }
+                    else{
+                        GOPNativeMode = GOP->Mode->Mode;
+                        GOPNumModes = GOP->Mode->MaxMode;
+                    }
+                    Print(L"GOP native mode: %d\r\nGOP number of modes: %d\r\n", GOPNativeMode, GOPNumModes);
+                    //query GOP modes
+                    for(UINTN i = 0;i<GOPNumModes;i++){
+                        status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, i, &GOPInfoSize, &GOPInfo);
+                        if(EFI_ERROR(status)){
+                            Print(L"Get mode %d failed!", i);
+                        }
+                        else{
+                            Print(L"mode %d: %dx%d format %x%s  ", i, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, i == GOPNativeMode ? L"(current)" : L"");                  
+                        }
+                        //prompt
+                        Print(L"y to select this mode:");
+                        while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke, 2, ST->ConIn, &key) != EFI_SUCCESS);
+                        if(key.UnicodeChar == L'y'){
+                            bestModeNum = i;
+                            uefi_call_wrapper(GOP->QueryMode, 4, GOP, bestModeNum, &GOPInfoSize, &GOPInfo);
+                            Print(L"Selected:\r\nmode %d: %dx%d format %x%s\r\n", bestModeNum, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, bestModeNum == GOPNativeMode ? L"(current)" : L"");
+                        }
+                        else{
+                            Print(L"Nuh uh\r\n");
+                        }
+                    }
+                    break;
+                case 0x11:
                     //GOP info
                     uefi_call_wrapper(GOP->QueryMode, 4, GOP, bestModeNum, &GOPInfoSize, &GOPInfo);
                     //Set GOP mode

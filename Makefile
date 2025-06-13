@@ -183,13 +183,20 @@ qemu-slow:
 
 convert-video-yt:
 	rm -rf data/frames/*
-	mkdir -p data/frames
 	ffmpeg -i data/video.mp4 -vf scale=640:360 -r 2 data/frames/frame_%04d.bmp
-	python scripts/convert.py
+	python scripts/convert-yt.py
 
+convert-bad-apple-frames:
+	rm -rf data/bad-apple-source/bmpframes/*
+	for file in data/bad-apple-source/frames-bad-apple/*.jpg; do \
+		filename=$$(basename $$file .jpg); \
+		ffmpeg -loglevel panic -i $$file data/bad-apple-source/bmpframes/$$filename.bmp; \
+	done
 
-
-
+convert-bad-apple:
+	rm -rf data/frames/*
+	cp -r data/bad-apple-source/bmpframes/* data/frames/
+	./scripts/convert-bad-apple
 
 
 

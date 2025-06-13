@@ -78,9 +78,6 @@ static uint16_t __pic_get_irq_reg(int ocw3);
 uint16_t pic_get_irr();
 uint16_t pic_get_isr();
 
-
-
-
 void setIDTEntry(IDT_Entry* entry, uint16_t segment, uint64_t offset, uint8_t ISTOffset, uint8_t attributes);
 void setGDTEntry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags);
 void triple_fault();
