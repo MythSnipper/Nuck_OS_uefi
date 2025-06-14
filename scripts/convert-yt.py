@@ -5,8 +5,6 @@ import struct
 # Configuration
 WIDTH = 640
 HEIGHT = 360
-FPS = 3
-SCALE = 2
 FRAME_DIR = "data/frames"
 OUTPUT = "data/video.nvideo"
 
@@ -15,7 +13,7 @@ frame_count = len(frame_files)
 
 with open(OUTPUT, "wb") as out:
     # Write header
-    out.write(struct.pack("<IIIII", WIDTH, HEIGHT, frame_count, FPS, SCALE))
+    out.write(struct.pack("<IIIIII", 1, WIDTH, HEIGHT, frame_count))
 
     for fname in frame_files:
         path = os.path.join(FRAME_DIR, fname)

@@ -1,104 +1,110 @@
 #include "convert-bad-apple.h"
 
-int ends_with(const char *str, const char *suffix) {
-    size_t lenstr = strlen(str);
-    size_t lensuffix = strlen(suffix);
-    return lenstr >= lensuffix && strcmp(str + lenstr - lensuffix, suffix) == 0;
+
+
+
+
+// Fixed paths
+static const char *REF_PATH   = "data/bad-apple-source/frames-bad-apple/out0001.jpg";
+static const char *FRAME_DIR  = "data/frames";
+static const char *OUTPUT_PATH= "data/video.nvideo";
+
+// Compare function for qsort (lexicographical)
+static int cmp_filenames(const void *a, const void *b) {
+    const char *fa = *(const char **)a;
+    const char *fb = *(const char **)b;
+    return strcmp(fa, fb);
 }
 
-int compare(const void *a, const void *b) {
-    return strcmp(*(const char **)a, *(const char **)b);
-}
-
-void write_uint32_le(FILE *f, uint32_t val) {
-    uint8_t b[4] = { val & 0xFF, (val >> 8) & 0xFF, (val >> 16) & 0xFF, (val >> 24) & 0xFF };
-    fwrite(b, 1, 4, f);
-}
-
-uint8_t grayscale_threshold(uint8_t r, uint8_t g, uint8_t b) {
-    return ((r + g + b) / 3) >= 128 ? 1 : 0;
-}
-
-int main() {
-    int ref_width, ref_height, ref_channels;
-    unsigned char *ref_img = stbi_load(JPG, &ref_width, &ref_height, &ref_channels, 3);
+int main(void) {
+    int width, height, channels;
+    unsigned char *ref_img = stbi_load(REF_PATH, &width, &height, &channels, 3);
     if (!ref_img) {
-        fprintf(stderr, "Failed to load reference JPG: %s\n", JPG);
+        fprintf(stderr, "Failed to load reference image '%s': %s\n", REF_PATH, stbi_failure_reason());
         return 1;
     }
     stbi_image_free(ref_img);
-    printf("Using reference resolution: %dx%d\n", ref_width, ref_height);
+    printf("Reference size: %dx%d\n", width, height);
 
-    // Collect BMP filenames
     DIR *dir = opendir(FRAME_DIR);
     if (!dir) {
-        perror("Could not open frame directory");
+        fprintf(stderr, "Failed to open directory '%s': %s\n", FRAME_DIR, strerror(errno));
         return 1;
     }
 
-    char *files[10000];
-    int file_count = 0;
+    char **files = NULL;
+    size_t count = 0;
     struct dirent *entry;
     while ((entry = readdir(dir))) {
-        if (ends_with(entry->d_name, ".bmp")) {
-            files[file_count++] = strdup(entry->d_name);
+        size_t len = strlen(entry->d_name);
+        if (len > 4 && strcmp(entry->d_name + len - 4, ".bmp") == 0) {
+            files = realloc(files, (count + 1) * sizeof(char *));
+            files[count] = strdup(entry->d_name);
+            count++;
         }
     }
     closedir(dir);
-    qsort(files, file_count, sizeof(char *), compare);
 
-    FILE *out = fopen(OUTPUT_FILE, "wb");
+    if (count == 0) {
+        fprintf(stderr, "No .bmp files found in '%s'\n", FRAME_DIR);
+        return 1;
+    }
+    qsort(files, count, sizeof(char *), cmp_filenames);
+
+    FILE *out = fopen(OUTPUT_PATH, "wb");
     if (!out) {
-        perror("Could not open output file");
+        fprintf(stderr, "Failed to open output '%s': %s\n", OUTPUT_PATH, strerror(errno));
         return 1;
     }
 
-    write_uint32_le(out, ref_width);
-    write_uint32_le(out, ref_height);
+    uint32_t header[4] = {0, (uint32_t)width, (uint32_t)height, (uint32_t)count};
+    fwrite(header, sizeof(header), 1, out);
 
-    for (int i = 0; i < file_count; i++) {
-        char path[512];
+    for (size_t i = 0; i < count; i++){
+        char path[4096];
         snprintf(path, sizeof(path), "%s/%s", FRAME_DIR, files[i]);
-
         int w, h, c;
         unsigned char *img = stbi_load(path, &w, &h, &c, 3);
         if (!img) {
-            fprintf(stderr, "Failed to load: %s\n", path);
-            continue;
+            fprintf(stderr, "Failed to load frame '%s': %s\n", path, stbi_failure_reason());
+            fclose(out);
+            return 1;
         }
-
-        // Resize if needed (not supported by stb_image — just warn)
-        if (w != ref_width || h != ref_height) {
-            fprintf(stderr, "Skipping %s due to mismatched resolution (%dx%d)\n", path, w, h);
+        if (w != width || h != height) {
+            fprintf(stderr, "Frame '%s' has size %dx%d, expected %dx%d\n", path, w, h, width, height);
             stbi_image_free(img);
-            continue;
+            fclose(out);
+            return 1;
         }
 
         uint8_t byte = 0;
         int bit_count = 0;
-        for (int i = 0; i < w * h; i++) {
-            uint8_t r = img[i * 3 + 0];
-            uint8_t g = img[i * 3 + 1];
-            uint8_t b = img[i * 3 + 2];
-
-            byte = (byte << 1) | grayscale_threshold(r, g, b);
+        for (int p = 0; p < w * h; p++) {
+            unsigned char r = img[3*p + 0];
+            unsigned char g = img[3*p + 1];
+            unsigned char b = img[3*p + 2];
+            unsigned char gray = (r + g + b) / 3;
+            int bit = (gray >= 128) ? 1 : 0;
+            byte = (uint8_t)((byte << 1) | bit);
             bit_count++;
             if (bit_count == 8) {
                 fputc(byte, out);
-                bit_count = 0;
                 byte = 0;
+                bit_count = 0;
             }
         }
         if (bit_count > 0) {
             byte <<= (8 - bit_count);
             fputc(byte, out);
         }
-
         stbi_image_free(img);
-        free(files[i]);
     }
 
     fclose(out);
-    printf("Done. Output written to %s\n", OUTPUT_FILE);
+    printf("Wrote %zu frames to '%s'\n", count, OUTPUT_PATH);
+
+    for (size_t i = 0; i < count; i++) free(files[i]);
+    free(files);
+
     return 0;
 }

@@ -38,7 +38,7 @@ frame_files = sorted(f for f in os.listdir(FRAME_DIR) if f.endswith(".bmp"))
 
 with open(OUTPUT, "wb") as out:
     # Write header: width and height only
-    out.write(struct.pack("<II", WIDTH, HEIGHT))
+    out.write(struct.pack("<IIII", 0, WIDTH, HEIGHT, len(frame_files)))
 
     for fname in frame_files:
         path = os.path.join(FRAME_DIR, fname)

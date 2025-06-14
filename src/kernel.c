@@ -55,6 +55,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     0b10010010, //Access:present, ring 0, non system segment(code/data segment), non executable(data segment), up direction, writable, access
     0b1000 //granularity: page granularity(not byte), size flag(0 because long mode data), not long mode code, reserved
     );
+
     //load the GDT
     asm volatile(
         ".intel_syntax noprefix\n"
@@ -348,7 +349,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     setIDTEntry(&IDT[254], CODE_SEG, (uint64_t) &isr_254, 0b000, 0b10001110);
     setIDTEntry(&IDT[255], CODE_SEG, (uint64_t) &isr_255, 0b000, 0b10001110);
     }
-    
+
     //load the IDT
     asm volatile(
         ".intel_syntax noprefix\n"
@@ -358,9 +359,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         : [idt] "r"(&IDTPtr)
         : "memory"
     );
-
-
-    while(ctx->GOP->Info->PixelFormat != 1);
 
     uint32_t versionMajor = 1;
     uint32_t versionMinor = 0;
@@ -1992,9 +1990,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     ((uint32_t*)CPUVendor)[2] = CPUVendor_r[2];
     CPUVendor[12] = 0;
 
-
-
-
     //Display
     //swap the buffers so the GOP framebuffer is actually the backbuffer
     {
@@ -2009,18 +2004,17 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     KERNEL_TEXT_OUTPUT title = {VGAfont, 8, 16, 4, 4, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
     KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 2, 2, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
     
-    uint32_t videoX = 0;
-    uint32_t videoY = 0;
-    
-    uint8_t* data = (uint8_t*)ctx->file;
-    uint32_t width = *(uint32_t*)data;
-    uint32_t height = *(uint32_t*)data+4;
-    uint32_t frameCount = *(uint32_t*)data+8;
-    uint32_t fps = *(uint32_t*)data+12;
-    uint32_t scale = *(uint32_t*)data+16;
-    data += 20;
-    uint32_t frame = 0;
 
+
+    //parse video headers
+    uint8_t* video_addr = (uint8_t*) ctx->file;
+    uint32_t video_format = *(uint32_t*)(video_addr);
+    uint32_t video_width = *(uint32_t*)(video_addr+4);
+    uint32_t video_height = *(uint32_t*)(video_addr+8);
+    uint32_t video_frameCount = *(uint32_t*)(video_addr+12);
+    video_addr += 16;
+
+    uint32_t video_frameCounter = 0;
 
     while(true){
         title = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 4, 4, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
@@ -2034,10 +2028,10 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         GOPDrawRect(ctx->GOP, 0, 3*screenYFraction, screenX, 4*screenYFraction - 1, hex(0xF7A8B8), fill);
         GOPDrawRect(ctx->GOP, 0, 4*screenYFraction, screenX, 5*screenYFraction - 1, hex(0x55CDFC), fill);
 
-        printf(ctx->GOP, &ConOut, "From the %s to the %s to the %s to the %s\r\nWhere's my crown, that's my bling, always %f when I ring\r\n", "screen", "ring", "pen", "king", 1.7);
-        printf(ctx->GOP, &ConOut, "It's pride month!\r\n");
-
+        printf(ctx->GOP, &ConOut, "operating system of the future\r\n");
+        printf(ctx->GOP, &ConOut, "Display pixel format: %d\r\n", ctx->GOP->Info->PixelFormat);
         printf(ctx->GOP, &ConOut, "Code segment: %x\r\nData segment: %x\r\nCPU Vendor: %s\r\n", CODE_SEG, DATA_SEG, CPUVendor);
+        printf(ctx->GOP, &ConOut, "Video resolution: %dx%d, format %d, frame %d/%d", video_width, video_height, video_format, video_frameCounter+1, video_frameCount);
 
         printf(ctx->GOP, &title, "Welcome to \r\n");
         title.frontColor = 0xE50000;title.backColor = 0x000000;
@@ -2058,26 +2052,12 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
         printf(ctx->GOP, &title, " Version %u.%u!\r\n", versionMajor, versionMinor);
 
-        //draw frame
-        uint8_t* framePtr;
-        uint8_t* linePtr;
-        uint32_t pixelColor;
-        if(frame < frameCount){
-            framePtr = (uint8_t*)(data + frame * (3 * width * height)); //pointer to the first pixel of frame
-            for(uint32_t line=0;line < height;line++){
-                linePtr = (uint8_t*)(framePtr + line * (3 * width));
-                for(uint32_t pixel=0;pixel < width;pixel++){
-                    pixelColor = *(uint32_t*)(linePtr + 3 * pixel);
-                    pixelColor |= 0xFF000000;
-                    GOPPutPixel(ctx->GOP, videoX + pixel, videoY + line, pixelColor);
-                }
-            }
-        }
-        frame++;
+        //play video
+        playVideo(ctx->GOP, 0, 0, video_format, video_addr, video_width, video_height, video_frameCount, &video_frameCounter, true, 5);
+
+        //GOPDrawImage(ctx->GOP, 0, 0, 500, 500, (uint8_t*)10000000, 0);
+
         
-
-
-
         //copy framebuffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
     }
@@ -2190,9 +2170,18 @@ uint16_t pic_get_isr(){
 }
 
 
+//dynamic memory allocation functions
+void heap_init(KERNEL_HEAP* heap){
+    //zero out heap map
+    for(uint64_t offset = 0;offset < 4096;offset++){
+        *(heap->map + offset) = 0;
+    }
+}
 
-
-
+void* heap_alloc(KERNEL_HEAP* heap, uint64_t pages){
+    //go through heap map
+    
+}
 
 
 
@@ -2227,6 +2216,45 @@ void triple_fault(){
 }
 
 //graphical functions
+void playVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t format, uint8_t* addr, uint32_t frameWidth, uint32_t frameHeight, uint32_t frameCount, uint32_t* frameCounter, bool loop, uint8_t skips){
+    if(*frameCounter >= frameCount){
+        return;
+    }
+    uint8_t* frameAddr = (uint8_t*)addr;
+    switch(format){
+        case 0: { //black and white, packed
+            frameAddr += (*frameCounter) * (frameWidth * frameHeight / 8);
+            GOPDrawImage(GOP, x, y, frameWidth, frameHeight, frameAddr, format);
+            break;
+        }
+    }
+    (*frameCounter)+=skips;
+    if(*frameCounter >= frameCount && loop){
+        *frameCounter = 0;
+    }
+}
+void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t imgwidth, uint32_t imgheight, uint8_t* imgaddr, uint32_t format){
+    switch(format){
+        case 0: { //black and white, packed, imgwidth is number of pixels, imgheight is number of pixels
+            uint32_t bpr = imgwidth/8; //bytes per row
+            for(uint32_t row = 0;row < imgheight;row++){
+                for(uint32_t byte = 0;byte < bpr;byte++){
+                    //calculate byte
+                    uint8_t b = imgaddr[row * bpr + byte];
+                    uint32_t draw_x = x + byte * 8;
+                    uint32_t draw_y = y + row;
+                    //draw 8 pixels
+                    for(int8_t shift = 7;shift >= 0;shift--){
+                        uint32_t mask = 1 << shift;
+                        uint32_t color = (b & mask) ? 0xFFFFFFFF : 0xFF000000;
+                        GOPPutPixel(GOP, draw_x + (7-shift), draw_y, color);
+                    }
+                }
+            }
+            break;
+        }
+    }
+}
 void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t* str, ...){
     va_list args;
     va_start(args, str);
@@ -2487,13 +2515,17 @@ static inline uint32_t hex(uint32_t hex){
 void* memcpy(void* source, void* dest, uint64_t size){
     uint8_t* d = (uint8_t*) dest;
     uint8_t* s = (uint8_t*) source;
-    while(size > sizeof(uint64_t)){ //64 bit copy
+    while (size >= 64 &&
+          ((uintptr_t)d % 64 == 0) &&
+          ((uintptr_t)s % 64 == 0)
+          ){
         *(uint64_t*)d = *(uint64_t*)s;
-        s += sizeof(uint64_t);
-        d += sizeof(uint64_t);
-        size -= sizeof(uint64_t);
+        d += 64;
+        s += 64;
+        size -= 64;
     }
-    while(size--){
+    // Copy remaining bytes one by one
+    while (size--) {
         *d++ = *s++;
     }
     return dest;

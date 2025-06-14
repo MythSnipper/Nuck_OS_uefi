@@ -154,9 +154,8 @@ copydisk:
 	sudo rm -rf mnt/*
 	sudo cp -r usbroot/* mnt/
 	sudo tree mnt/
-	sudo umount $(EFI_PART)
-
 	sudo sync
+	sudo umount $(EFI_PART)
 
 #copy iso image to usb
 copyimg:
@@ -208,4 +207,3 @@ convert-bad-apple:
 	rm -rf data/frames/*
 	cp -r data/bad-apple-source/bmpframes/* data/frames/
 	./scripts/convert-bad-apple
-
