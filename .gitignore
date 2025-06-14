@@ -1,8 +1,9 @@
 .vscode/
-build/
-gnu-efi/
-mnt/
-ovmf/
-shim/
-usbroot/
-data/
+build/*
+data/frames/*
+data/*.mp4
+data/*.nvideo
+mnt/*
+usbroot/*
+
+
