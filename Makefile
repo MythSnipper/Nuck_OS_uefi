@@ -73,8 +73,13 @@ KERNEL_LDFLAGS =\
 --oformat binary
 
 
-all: clean build copydisk qemu
+all: clean build copy-usbroot copydisk qemu
 
+clean:
+	sudo rm -rf build/*
+	sudo rm -rf usbroot/*
+
+#build code into build directory
 build:
 	mkdir -p usbroot/EFI/BOOT/
 
@@ -91,15 +96,13 @@ build:
 	build/kernel.o \
 	-o build/kernel-full.bin
 
+#copy code and data to usbroot
+copy-usbroot:
 	cp build/nuckboot.efi usbroot/EFI/BOOT/BOOTX64.EFI
 	cp build/kernel-full.bin usbroot/kernel.bin
-
 	cp data/*.nvideo usbroot/
 
-clean:
-	sudo rm -rf build/*
-	sudo rm -rf usbroot/*
-
+#reconstruct usb partitions and format
 disk:
 	echo -e "+${EFI_PART_SIZE}"
 	#GPT table and create partition
@@ -113,6 +116,7 @@ disk:
 	echo -e "y\n" | sudo mkfs.ext2 $(MAIN_PART)
 	sudo sync
 
+#build iso image
 img:
 	sudo rm -rf build/*.iso
 	sudo dd if=/dev/zero of=build/$(IMAGE_NAME) bs=1MiB count=$(IMAGE_SIZE) status=progress
@@ -142,6 +146,7 @@ img:
 	\
 	sudo losetup -d $$LOOP_DEV
 
+#copy files to usb
 copydisk:
 	lsblk
 
@@ -153,11 +158,13 @@ copydisk:
 
 	sudo sync
 
+#copy iso image to usb
 copyimg:
 	lsblk
 	sudo dd if=build/nuck_os.iso of=$(DEVICE) bs=1MiB status=progress
 	sudo sync
 
+#test in qemu
 qemu:
 	sudo sync
 	sudo qemu-system-x86_64 \
@@ -170,6 +177,7 @@ qemu:
 	-usb -device usb-storage,drive=nuckusb \
     -drive file=$(DEVICE),if=none,format=raw,id=nuckusb
 
+#test in qemu(slow)
 qemu-slow:
 	sudo sync
 	sudo qemu-system-x86_64 \
@@ -181,24 +189,23 @@ qemu-slow:
 	-usb -device usb-storage,drive=nuckusb \
     -drive file=$(DEVICE),if=none,format=raw,id=nuckusb
 
+#convert downloaded youtube video "video.mp4" to BGR bmp video
 convert-video-yt:
-	rm -rf data/frames/*
+	rm data/frames/*
 	ffmpeg -i data/video.mp4 -vf scale=640:360 -r 2 data/frames/frame_%04d.bmp
 	python scripts/convert-yt.py
 
+#convert jpg images to bmp frames
 convert-bad-apple-frames:
-	rm -rf data/bad-apple-source/bmpframes/*
+	rm data/bad-apple-source/bmpframes/*
 	for file in data/bad-apple-source/frames-bad-apple/*.jpg; do \
 		filename=$$(basename $$file .jpg); \
 		ffmpeg -loglevel panic -i $$file data/bad-apple-source/bmpframes/$$filename.bmp; \
 	done
 
+#convert bmp frames to black and white bmp video
 convert-bad-apple:
 	rm -rf data/frames/*
 	cp -r data/bad-apple-source/bmpframes/* data/frames/
 	./scripts/convert-bad-apple
-
-
-
-
 
