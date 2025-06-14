@@ -82,7 +82,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
     IDTPtr.size = sizeof(IDT)-1;
     IDTPtr.offset = (uint64_t)&IDT;
-    
+
+
     //interrupts
     {
     //atributes: present, ring 0, 0, gate type(1110 interrupt, 1111 trap)
@@ -347,7 +348,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     setIDTEntry(&IDT[254], CODE_SEG, (uint64_t) &isr_254, 0b000, 0b10001110);
     setIDTEntry(&IDT[255], CODE_SEG, (uint64_t) &isr_255, 0b000, 0b10001110);
     }
-
+    
     //load the IDT
     asm volatile(
         ".intel_syntax noprefix\n"

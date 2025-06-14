@@ -1,6 +1,7 @@
 .vscode/
 build/*
 data/frames/*
+data/bad-apple-source/bmpframes/*
 data/*.mp4
 data/*.nvideo
 mnt/*
