@@ -40,7 +40,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
             }
         }
     }
-
+    bootloader_start:
     //clear console output, sets background color, cursor goes to 0, 0
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_CYAN, EFI_CYAN));
     uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
@@ -57,7 +57,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
 
     //very good message
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load Nuck OS kernel and data\r\nF5 to select GOP mode\r\nF6 to manually select GOP mode\r\nF7 to set GOP, get memory map and run Nuck OS kernel\r\n");
+    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load Nuck OS kernel and data\r\nF5 to select GOP mode\r\nF6 to manually select GOP mode\r\nF7 to set GOP, get memory map and run Nuck OS kernel\r\nF8 to reset bootloader\r\n");
 
     //variables used in main logic
     UINTN MemoryMapSize = 0; //size of the memory map in bytes
@@ -302,6 +302,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     uefi_call_wrapper(ST->BootServices->ExitBootServices, 2, ImageHandle, MapKey);
                     goto exit_boot_services;
                     break;
+                }
+                case 0x12: {
+                    goto bootloader_start;
                 }
             }
         }

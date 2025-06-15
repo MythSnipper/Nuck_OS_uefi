@@ -1990,6 +1990,10 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     void* testPtr3 = heap_alloc(ctx->heap, 3);
     heap_free(ctx->heap, testPtr2, 1);
     
+    KERNEL_SUBPAGE_ALLOCATOR alloc = {ctx->heap, NULL, NULL};
+    subpage_alloc_init(&alloc);
+
+
     while(true){
         title = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
         ConOut = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
@@ -2031,7 +2035,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         printf(ctx->GOP, &title, " Version %u.%u!\r\n", versionMajor, versionMinor);
 
         //play video
-        if(e > 50){
+        if(e > 150){
             playVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - video_width, 0, video_format, video_addr, video_width, video_height, video_frameCount, &video_frameCounter, true, 4);
         }
         else{
@@ -2159,6 +2163,11 @@ uint16_t pic_get_isr(){
 
 
 //dynamic memory allocation functions
+void subpage_alloc_init(KERNEL_SUBPAGE_ALLOCATOR* alloc){
+    alloc->freeListStart = heap_alloc(alloc->heap, 1);
+    for
+}
+
 void heap_init(KERNEL_HEAP* heap){
     //zero out heap map
     for(uint32_t offset = 0;offset < 4096;offset++){

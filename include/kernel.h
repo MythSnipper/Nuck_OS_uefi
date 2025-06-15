@@ -11,8 +11,8 @@
 typedef struct __attribute__((packed)) {
     uint16_t offset_low;
     uint16_t segment;
-    uint8_t ist;
-    uint8_t attributes;
+    uint8_t  ist;
+    uint8_t  attributes;
     uint16_t offset_mid;
     uint32_t offset_high;
     uint32_t reserved;
@@ -49,12 +49,12 @@ typedef struct{
     uint32_t offsetY;
     uint32_t frontColor;
     uint32_t backColor;
-    uint8_t useAbsolutePosition;
+    uint8_t  useAbsolutePosition;
 } KERNEL_TEXT_OUTPUT;
 
 typedef struct{
-    uint8_t*                           map;
-    uint8_t*                           heap;
+    uint8_t* map;
+    uint8_t* heap;
 } KERNEL_HEAP;
 
 typedef struct{
@@ -71,6 +71,12 @@ typedef struct{
     KERNEL_HEAP*                       heap;
     EFI_PHYSICAL_ADDRESS               file;
 } KERNEL_CONTEXT_TABLE;
+
+typedef struct{
+    KERNEL_HEAP* heap;
+    uint8_t*     freeListStart;
+    uint8_t*     freeListEnd;
+} KERNEL_SUBPAGE_ALLOCATOR;
 
 typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;
 
@@ -89,6 +95,9 @@ void triple_fault();
 
 
 //dynamic memory allocation functions
+void subpage_alloc_init(KERNEL_SUBPAGE_ALLOCATOR* alloc);
+
+
 void heap_init(KERNEL_HEAP* heap);
 void* heap_alloc(KERNEL_HEAP* heap, uint32_t pages);
 void heap_free(KERNEL_HEAP* heap, void* addr, uint32_t pages);
