@@ -1,38 +1,4 @@
 #include "../include/kernel.h"
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-/*
-typedef struct {
-    UINT32                                 MaxMode;
-    UINT32                                 Mode;
-    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION   *Info;
-    UINTN                                  SizeOfInfo;
-    EFI_PHYSICAL_ADDRESS                   FrameBufferBase;
-    UINTN                                  FrameBufferSize;
-} EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE;
- 
-typedef struct {
-    UINT32                     Version;
-    UINT32                     HorizontalResolution;
-    UINT32                     VerticalResolution;
-    EFI_GRAPHICS_PIXEL_FORMAT  PixelFormat;
-    EFI_PIXEL_BITMASK          PixelInformation;
-    UINT32                     PixelsPerScanLine;
-} EFI_GRAPHICS_OUTPUT_MODE_INFORMATION;
-
-typedef struct{
-    CHAR16*                            FirmwareVendor;
-    uint32_t                           FirmwareRevision;
-    EFI_RUNTIME_SERVICES*              RuntimeServices;
-    EFI_MEMORY_DESCRIPTOR*             MemoryMap;
-    uint64_t                           MemoryMapSize;
-    uint64_t                           MemoryMapDescriptorSize;
-    EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* GOP;
-    EFI_PHYSICAL_ADDRESS               fb; //backbuffer
-    EFI_PHYSICAL_ADDRESS               kernelStack;
-    uint64_t                           kernelStackSize;
-} KERNEL_CONTEXT_TABLE;
-*/
 
 
 void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
@@ -2023,7 +1989,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     void* testPtr2 = heap_alloc(ctx->heap, 1);
     void* testPtr3 = heap_alloc(ctx->heap, 3);
     heap_free(ctx->heap, testPtr2, 1);
-
+    
     while(true){
         title = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
         ConOut = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
@@ -2043,7 +2009,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         printf(ctx->GOP, &ConOut, "operating system of the future\r\n");
         printf(ctx->GOP, &ConOut, "Display pixel format: %d\r\n", ctx->GOP->Info->PixelFormat);
         printf(ctx->GOP, &ConOut, "Code segment: %x\r\nData segment: %x\r\nCPU Vendor: %s\r\n", CODE_SEG, DATA_SEG, CPUVendor);
-        printf(ctx->GOP, &ConOut, "Video resolution: %dx%d, format %d, frame %d/%d", video_width, video_height, video_format, video_frameCounter+1, video_frameCount);
+        printf(ctx->GOP, &ConOut, "Video resolution: %dx%d\r\nformat %d\r\nframe %d/%d\r\n", video_width, video_height, video_format, video_frameCounter+1, video_frameCount);
 
         printf(ctx->GOP, &title, "Welcome to \r\n");
         title.frontColor = 0xE50000;title.backColor = 0x000000;
@@ -2065,8 +2031,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         printf(ctx->GOP, &title, " Version %u.%u!\r\n", versionMajor, versionMinor);
 
         //play video
-        if(e > 100){
-        playVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - video_width, 0, video_format, video_addr, video_width, video_height, video_frameCount, &video_frameCounter, true, 4);
+        if(e > 50){
+            playVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - video_width, 0, video_format, video_addr, video_width, video_height, video_frameCount, &video_frameCounter, true, 4);
         }
         else{
             e++;
@@ -2192,15 +2158,6 @@ uint16_t pic_get_isr(){
 
 
 
-
-
-
-
-
-
-
-
-
 //dynamic memory allocation functions
 void heap_init(KERNEL_HEAP* heap){
     //zero out heap map
@@ -2208,7 +2165,6 @@ void heap_init(KERNEL_HEAP* heap){
         *(heap->map + offset) = 0;
     }
 }
-
 void* heap_alloc(KERNEL_HEAP* heap, uint32_t pages){
     //two pointers to check start block to end block
     uint32_t start_block = 0;
@@ -2243,7 +2199,6 @@ void* heap_alloc(KERNEL_HEAP* heap, uint32_t pages){
     //return address of start_block in the heap
     return (void*)(heap->heap + 4096 * start_block);
 }
-
 void heap_free(KERNEL_HEAP* heap, void* addr, uint32_t pages){
     //calculate start block
     uint32_t start_block = ((uint8_t*)addr - heap->heap)/4096;
@@ -2255,7 +2210,6 @@ void heap_free(KERNEL_HEAP* heap, void* addr, uint32_t pages){
         heap->map[heap_map_offset] &= ~(1 << heap_map_shift);
     }
 }
-
 void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut){
     uint32_t displayed = 0;
     uint32_t limit = 30;
@@ -2278,8 +2232,6 @@ void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut){
         }
     }
 }
-
-
 
 //GDT/IDT functions, general functions
 void setIDTEntry(IDT_Entry* entry, uint16_t segment, uint64_t offset, uint8_t ISTOffset, uint8_t attributes){
@@ -2690,10 +2642,6 @@ uint64_t rdtsc(){
     asm volatile("rdtsc":"=a"(low),"=d"(high));
     return ((uint64_t)high << 32) | low;
 }
-
-
-
-
 
 
 
