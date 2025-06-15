@@ -53,6 +53,11 @@ typedef struct{
 } KERNEL_TEXT_OUTPUT;
 
 typedef struct{
+    uint8_t*                           map;
+    uint8_t*                           heap;
+} KERNEL_HEAP;
+
+typedef struct{
     CHAR16*                            FirmwareVendor;
     uint32_t                           FirmwareRevision;
     EFI_RUNTIME_SERVICES*              RuntimeServices;
@@ -66,11 +71,6 @@ typedef struct{
     KERNEL_HEAP*                       heap;
     EFI_PHYSICAL_ADDRESS               file;
 } KERNEL_CONTEXT_TABLE;
-
-typedef struct{
-    uint8_t*                           map;
-    uint8_t*                           heap;
-} KERNEL_HEAP;
 
 typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;
 
@@ -90,7 +90,9 @@ void triple_fault();
 
 //dynamic memory allocation functions
 void heap_init(KERNEL_HEAP* heap);
-void heap_alloc(KERNEL_HEAP* heap);
+void* heap_alloc(KERNEL_HEAP* heap, uint32_t pages);
+void heap_free(KERNEL_HEAP* heap, void* addr, uint32_t pages);
+void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut);
 
 
 //graphical functions

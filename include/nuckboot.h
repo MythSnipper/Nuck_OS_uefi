@@ -6,6 +6,11 @@
 #include <efilib.h>
 
 typedef struct{
+    uint8_t*                           map;
+    uint8_t*                           heap;
+} KERNEL_HEAP;
+
+typedef struct{
     CHAR16*                            FirmwareVendor;
     uint32_t                           FirmwareRevision;
     EFI_RUNTIME_SERVICES*              RuntimeServices;
@@ -19,11 +24,6 @@ typedef struct{
     KERNEL_HEAP*                       heap;
     EFI_PHYSICAL_ADDRESS               file;
 } KERNEL_CONTEXT_TABLE;
-
-typedef struct{
-    uint8_t*                           map;
-    uint8_t*                           heap;
-} KERNEL_HEAP;
 
 void closeFile(EFI_FILE_PROTOCOL* file);
 UINT64 getFileSize(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* file);

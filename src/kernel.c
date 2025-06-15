@@ -361,7 +361,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     );
 
     uint32_t versionMajor = 1;
-    uint32_t versionMinor = 0;
+    uint32_t versionMinor = 2;
     //font
     uint8_t VGAfont[] = {
         //32
@@ -2001,9 +2001,9 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     bool fill = true;
     uint32_t screenX = ctx->GOP->Info->HorizontalResolution - 1;
     uint32_t screenYFraction = ctx->GOP->Info->VerticalResolution / 5;
-    KERNEL_TEXT_OUTPUT title = {VGAfont, 8, 16, 4, 4, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
-    KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 2, 2, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
-    
+    KERNEL_TEXT_OUTPUT title = {VGAfont, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
+    KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
+    KERNEL_TEXT_OUTPUT HeapOut = {VGAfont, 8, 16, 1, 1, 0, 0, 0, 0, hex(0xFF10F0), hex(0x000000), false};
 
 
     //parse video headers
@@ -2015,18 +2015,30 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     video_addr += 16;
 
     uint32_t video_frameCounter = 0;
+    uint32_t e = 0;
+
+    
+    heap_init(ctx->heap);   
+    void* testPtr = heap_alloc(ctx->heap, 2);
+    void* testPtr2 = heap_alloc(ctx->heap, 1);
+    void* testPtr3 = heap_alloc(ctx->heap, 3);
+    heap_free(ctx->heap, testPtr2, 1);
 
     while(true){
-        title = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 4, 4, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
-        ConOut = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 2, 2, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
+        title = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
+        ConOut = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
+        HeapOut =(KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 1, 1, 0, 0, 0, 0, hex(0xFF10F0), hex(0x000000), false};
         //clear screen
         GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
-
+        /*
         GOPDrawRect(ctx->GOP, 0, 0, screenX, screenYFraction - 1, hex(0x55CDFC), fill);
         GOPDrawRect(ctx->GOP, 0, screenYFraction, screenX, 2*screenYFraction - 1, hex(0xF7A8B8), fill);
         GOPDrawRect(ctx->GOP, 0, 2*screenYFraction, screenX, 3*screenYFraction - 1, hex(0xFFFFFF), fill);
         GOPDrawRect(ctx->GOP, 0, 3*screenYFraction, screenX, 4*screenYFraction - 1, hex(0xF7A8B8), fill);
         GOPDrawRect(ctx->GOP, 0, 4*screenYFraction, screenX, 5*screenYFraction - 1, hex(0x55CDFC), fill);
+        */
+        GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x00807F), true);
+        
 
         printf(ctx->GOP, &ConOut, "operating system of the future\r\n");
         printf(ctx->GOP, &ConOut, "Display pixel format: %d\r\n", ctx->GOP->Info->PixelFormat);
@@ -2053,10 +2065,14 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         printf(ctx->GOP, &title, " Version %u.%u!\r\n", versionMajor, versionMinor);
 
         //play video
-        playVideo(ctx->GOP, 0, 0, video_format, video_addr, video_width, video_height, video_frameCount, &video_frameCounter, true, 5);
-
+        if(e > 100){
+        playVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - video_width, 0, video_format, video_addr, video_width, video_height, video_frameCount, &video_frameCounter, true, 4);
+        }
+        else{
+            e++;
+        }
         //GOPDrawImage(ctx->GOP, 0, 0, 500, 500, (uint8_t*)10000000, 0);
-
+        heap_display(ctx->heap, ctx->GOP, &HeapOut);
         
         //copy framebuffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
@@ -2170,17 +2186,97 @@ uint16_t pic_get_isr(){
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 //dynamic memory allocation functions
 void heap_init(KERNEL_HEAP* heap){
     //zero out heap map
-    for(uint64_t offset = 0;offset < 4096;offset++){
+    for(uint32_t offset = 0;offset < 4096;offset++){
         *(heap->map + offset) = 0;
     }
 }
 
-void* heap_alloc(KERNEL_HEAP* heap, uint64_t pages){
+void* heap_alloc(KERNEL_HEAP* heap, uint32_t pages){
+    //two pointers to check start block to end block
+    uint32_t start_block = 0;
+    uint32_t end_block = 0;
     //go through heap map
-    
+    for(uint32_t offset = 0;offset < 4096;offset++){
+        //loop through every bit
+        for(int8_t shift = 7;shift >= 0;shift--){
+            uint8_t byte = *(uint8_t*)(heap->map + offset);
+            uint8_t bit = byte & (1 << shift);
+            //move end block
+            end_block++;
+            if(bit){ //if allocated, move start to end
+                start_block = end_block;
+            }
+            //count if free block size is enough to store the requested amount
+            if(end_block - start_block >= pages){
+                goto found_free_pages;
+            }
+        }
+    }
+    return (void*)0; //return null
+    found_free_pages:
+    //write 1 to the heap map range start_block to end_block
+    for(uint32_t free_block = start_block;free_block < end_block;free_block++){
+        //calculate heap map address and shift from free_block
+        uint32_t heap_map_offset = free_block / 8;
+        uint32_t heap_map_shift = 7 - (free_block % 8);
+        //write 1
+        heap->map[heap_map_offset] |= 1 << heap_map_shift;
+    }
+    //return address of start_block in the heap
+    return (void*)(heap->heap + 4096 * start_block);
+}
+
+void heap_free(KERNEL_HEAP* heap, void* addr, uint32_t pages){
+    //calculate start block
+    uint32_t start_block = ((uint8_t*)addr - heap->heap)/4096;
+    for(uint32_t c = start_block;c < start_block + pages;c++){
+        //calculate heap map address and shift from free_block
+        uint32_t heap_map_offset = c / 8;
+        uint32_t heap_map_shift = 7 - (c % 8);
+        //write 1
+        heap->map[heap_map_offset] &= ~(1 << heap_map_shift);
+    }
+}
+
+void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut){
+    uint32_t displayed = 0;
+    uint32_t limit = 30;
+    //go through heap map
+    for(uint32_t offset = 0;offset < 4096;offset++){
+        //loop through every bit
+        for(int8_t shift = 7;shift >= 0;shift--){
+            uint8_t byte = *(uint8_t*)(heap->map + offset);
+            uint8_t bit = byte & (1 << shift);
+            if(bit){
+                printf(GOP, ConOut, "1");
+            }
+            else{
+                printf(GOP, ConOut, "0");
+            }
+            displayed++;
+            if(displayed >= limit){
+                return;
+            }
+        }
+    }
 }
 
 
