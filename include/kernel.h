@@ -74,8 +74,8 @@ typedef struct{
 
 typedef struct{
     KERNEL_HEAP* heap;
-    uint8_t*     freeListStart;
-    uint8_t*     freeListEnd;
+    uint64_t*     freeListStart;
+    uint64_t*     freeListEnd;
 } KERNEL_SUBPAGE_ALLOCATOR;
 
 typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;

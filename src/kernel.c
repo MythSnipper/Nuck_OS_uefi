@@ -1991,7 +1991,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     
     KERNEL_SUBPAGE_ALLOCATOR alloc = {ctx->heap, NULL, NULL};
     subpage_alloc_init(&alloc);
-    subpage_alloc_expand(&alloc);
+    //subpage_alloc_expand(&alloc);
     void* subPtr = subpage_alloc(&alloc);
     void* subPtr2 = subpage_alloc(&alloc);
     heap_free(ctx->heap, testPtr, 1);
@@ -2011,6 +2011,16 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         */
         GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x00807F), true);
         
+
+        //play video
+        if(e > 200){
+            playVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - video_width, 0, video_format, video_addr, video_width, video_height, video_frameCount, &video_frameCounter, true, 4);
+        
+        }
+        else{
+            e++;
+        }
+
 
         printf(ctx->GOP, &ConOut, "operating system of the future\r\n");
         printf(ctx->GOP, &ConOut, "Display pixel format: %d\r\n", ctx->GOP->Info->PixelFormat);
@@ -2036,27 +2046,16 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
         printf(ctx->GOP, &title, " Version %u.%u!\r\n", versionMajor, versionMinor);
 
-        //play video
-        if(e > 200){
-            playVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - video_width, 0, video_format, video_addr, video_width, video_height, video_frameCount, &video_frameCounter, true, 4);
-        
-        }
-        else{
-            e++;
-        }
-        //GOPDrawImage(ctx->GOP, 0, 0, 500, 500, (uint8_t*)10000000, 0);
+
+
+
+
         heap_display(ctx->heap, ctx->GOP, &HeapOut);
         printf(ctx->GOP, &ConOut, "\r\n\nsubpage allocator: \r\n%lx to %lx\r\n", alloc.freeListStart, alloc.freeListEnd);
         printf(ctx->GOP, &ConOut, "1st subpage: %lx\r\n", subPtr);
         printf(ctx->GOP, &ConOut, "2nd subpage: %lx\r\n", subPtr2);
 
-        uint8_t* ptr = alloc.freeListStart;
-        uint32_t nodeCount = 0;
-        while(ptr != NULL){
-            ptr = (uint8_t*)*ptr;
-            nodeCount++;
-        }
-        printf(ctx->GOP, &ConOut, "Total nodes: %d\r\n", nodeCount);
+        
 
         //copy framebuffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
@@ -2195,17 +2194,9 @@ uint16_t pic_get_isr(){
 
 
 
-
-
-
-
-
-
-
-
 //dynamic memory allocation functions
 void subpage_alloc_init(KERNEL_SUBPAGE_ALLOCATOR* alloc){
-    alloc->freeListStart = heap_alloc(alloc->heap, 1);
+    alloc->freeListStart = (uint64_t*)heap_alloc(alloc->heap, 1);
 
     uint64_t prev_addr = (uint64_t)alloc->freeListStart;
     uint64_t curr_addr;
@@ -2215,14 +2206,14 @@ void subpage_alloc_init(KERNEL_SUBPAGE_ALLOCATOR* alloc){
         prev_addr = curr_addr; //update prev pointer
     }
     *(uint64_t*)prev_addr = 0; //last page(node in linked list)
-    alloc->freeListEnd = (uint8_t*)prev_addr;
+    alloc->freeListEnd = (uint64_t*)prev_addr;
 }
 void* subpage_alloc(KERNEL_SUBPAGE_ALLOCATOR* alloc){
     if(alloc->freeListStart == NULL){
-        return (void*)0;
+        return NULL;
     }
     void* ret = (void*)alloc->freeListStart;
-    alloc->freeListStart = (uint8_t*)(*alloc->freeListStart);
+    alloc->freeListStart = (uint64_t*)(*alloc->freeListStart);
     return ret;
 }
 void subpage_free(KERNEL_SUBPAGE_ALLOCATOR* alloc, void* addr){
@@ -2230,7 +2221,7 @@ void subpage_free(KERNEL_SUBPAGE_ALLOCATOR* alloc, void* addr){
         return;
     }
     *((uint64_t*)addr) = (uint64_t)alloc->freeListStart;
-    alloc->freeListStart = (uint8_t*)addr;
+    alloc->freeListStart = (uint64_t*)addr;
 }
 void subpage_alloc_expand(KERNEL_SUBPAGE_ALLOCATOR* alloc){
     uint8_t* newListStart = heap_alloc(alloc->heap, 1);
@@ -2245,8 +2236,8 @@ void subpage_alloc_expand(KERNEL_SUBPAGE_ALLOCATOR* alloc){
     *(uint64_t*)prev_addr = 0; //last page(node in linked list)
     uint8_t* newListEnd = (uint8_t*)prev_addr;
 
-    *((uint64_t*)alloc->freeListEnd) = (uint64_t)newListStart; //end of old last subpage points to first new subpage
-    alloc->freeListEnd = (uint8_t*)newListEnd;
+    *alloc->freeListEnd = (uint64_t)newListStart; //end of old last subpage points to first new subpage
+    alloc->freeListEnd = (uint64_t*)newListEnd;
 }
 
 void heap_init(KERNEL_HEAP* heap){
