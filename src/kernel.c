@@ -1973,7 +1973,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
 
     //parse video headers
-    uint8_t* video_addr = (uint8_t*) ctx->file;
+    uint8_t* video_addr = (uint8_t*) ctx->videoFile;
     uint32_t video_format = *(uint32_t*)(video_addr);
     uint32_t video_width = *(uint32_t*)(video_addr+4);
     uint32_t video_height = *(uint32_t*)(video_addr+8);
@@ -1983,6 +1983,16 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     uint32_t video_frameCounter = 0;
     uint32_t e = 0;
 
+    //parse image header
+    uint8_t* image_addr = (uint8_t*) ctx->imageFile;
+    uint32_t image_format = *(uint32_t*)(image_addr);
+    uint32_t image_width = *(uint32_t*)(image_addr+4);
+    uint32_t image_height = *(uint32_t*)(image_addr+8);
+    uint32_t image_frameCount = *(uint32_t*)(image_addr+12);
+    image_addr += 16;
+
+
+
     //MEM ALLOC STUFFFFFF IDK
     heap_init(ctx->heap);   
     void* testPtr = heap_alloc(ctx->heap, 2);
@@ -1991,7 +2001,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     
     KERNEL_SUBPAGE_ALLOCATOR alloc = {ctx->heap, NULL, NULL};
     subpage_alloc_init(&alloc);
-    //subpage_alloc_expand(&alloc);
+    subpage_alloc_expand(&alloc);
     void* subPtr = subpage_alloc(&alloc);
     void* subPtr2 = subpage_alloc(&alloc);
     heap_free(ctx->heap, testPtr, 1);
@@ -2010,16 +2020,22 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         GOPDrawRect(ctx->GOP, 0, 4*screenYFraction, screenX, 5*screenYFraction - 1, hex(0x55CDFC), fill);
         */
         GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x00807F), true);
-        
+
+
+
+
 
         //play video
-        if(e > 200){
+        if(e > 100){
             playVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - video_width, 0, video_format, video_addr, video_width, video_height, video_frameCount, &video_frameCounter, true, 4);
-        
         }
         else{
             e++;
         }
+
+        //logo
+        GOPDrawImage(ctx->GOP, ctx->GOP->Info->HorizontalResolution - image_width - 10, ctx->GOP->Info->VerticalResolution - image_height - 10, image_width, image_height, image_addr, image_format);
+        
 
 
         printf(ctx->GOP, &ConOut, "operating system of the future\r\n");
@@ -2047,14 +2063,11 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         printf(ctx->GOP, &title, " Version %u.%u!\r\n", versionMajor, versionMinor);
 
 
-
-
-
         heap_display(ctx->heap, ctx->GOP, &HeapOut);
+        printf(ctx->GOP, &ConOut, "\r\nheap page allocator: \r\n%lx, +32768 pages, %ld MB\r\n", ctx->heap->heap, 32768*4*1024/1024/1024);
         printf(ctx->GOP, &ConOut, "\r\n\nsubpage allocator: \r\n%lx to %lx\r\n", alloc.freeListStart, alloc.freeListEnd);
         printf(ctx->GOP, &ConOut, "1st subpage: %lx\r\n", subPtr);
         printf(ctx->GOP, &ConOut, "2nd subpage: %lx\r\n", subPtr2);
-
         
 
         //copy framebuffer
@@ -2382,8 +2395,18 @@ void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t imgwidth, uint3
             }
             break;
         }
-        case 1: { //BGR 3 byte per pixel
-
+        case 1: { //RGB 3 byte per pixel
+            uint32_t bpr = imgwidth * 3; //bytes per row
+            for(uint32_t row = 0;row < imgheight;row++){
+                for(uint32_t col = 0;col < imgwidth;col++){
+                    //row, col is pixel position
+                    //get pixel byte position
+                    uint32_t color_byte = *(uint32_t*)(imgaddr + row * bpr + col * 3);
+                    uint32_t draw_x = x + col;
+                    uint32_t draw_y = y + row;
+                    GOPPutPixel(GOP, draw_x, draw_y, hex(color_byte)); //color is ARGB;
+                }
+            }
         }
     }
 }

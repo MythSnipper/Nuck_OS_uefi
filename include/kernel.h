@@ -69,7 +69,8 @@ typedef struct{
     EFI_PHYSICAL_ADDRESS               kernelStack;
     uint64_t                           kernelStackSize;
     KERNEL_HEAP*                       heap;
-    EFI_PHYSICAL_ADDRESS               file;
+    EFI_PHYSICAL_ADDRESS               videoFile;
+    EFI_PHYSICAL_ADDRESS               imageFile;
 } KERNEL_CONTEXT_TABLE;
 
 typedef struct{

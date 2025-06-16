@@ -207,3 +207,7 @@ convert-bad-apple:
 	rm -rf data/frames/*
 	cp -r data/bad-apple-source/bmpframes/* data/frames/
 	./scripts/convert-bad-apple
+
+
+convert-oslogo:
+	python scripts/convert-logo.py

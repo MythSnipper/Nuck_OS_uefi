@@ -71,6 +71,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
 
     EFI_PHYSICAL_ADDRESS kernel_addr;
     EFI_PHYSICAL_ADDRESS video_addr;
+    EFI_PHYSICAL_ADDRESS image_addr;
 
     //GOP variables
     EFI_GUID GOPGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
@@ -122,13 +123,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     Print(L"loading kernel and data\r\n");
                     root = openVolume(ST, ImageHandle); //opens root of filesystem of boot device
                     
-
                     kernel_addr = loadFile(ST, root, L"kernel.bin");
                     video_addr = loadFile(ST, root, L"video.nvideo");
+                    image_addr = loadFile(ST, root, L"logo.nvideo");
 
-
-
-                    Print(L"kernel & data load success\r\n");
+                    Print(L"files loaded successfully\r\n");
                     break;
                 }
                 case 0x0F: {
@@ -311,7 +310,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         kernel_stack,
         kernel_stack_size,
         &heap,
-        video_addr
+        video_addr,
+        image_addr
     };
 
     //switch to kernel stack and call start of kernel image
@@ -337,7 +337,7 @@ EFI_PHYSICAL_ADDRESS loadFile(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wch
     EFI_PHYSICAL_ADDRESS addr;
 
     file = openFile(root, filename);
-    size = getFileSize(ST, file);
+    size = getFileSize(ST, file, filename);
     uefi_call_wrapper(ST->BootServices->AllocatePool, 3, EfiLoaderData, size, &addr);
     uefi_call_wrapper(file->Read, 3, file, &size, addr);
 
@@ -357,14 +357,15 @@ void closeFile(EFI_FILE_PROTOCOL* file){
     }
 }
 
-UINT64 getFileSize(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* file){    
+UINT64 getFileSize(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* file, wchar_t* filename){    
     EFI_FILE_INFO* info;
     UINT64 ret;
 
     info = LibFileInfo(file);
     ret = info->FileSize;
     uefi_call_wrapper(ST->BootServices->FreePool, 1, info);
-    Print(L"file size: ");
+    Print(filename);
+    Print(L" file size: ");
     if(ret >= 1024*1024){
         Print(L"%f MiB/%f MB ", ret/(1048576.0f), ret/(1000000.0f));
     }
