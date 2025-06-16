@@ -209,5 +209,16 @@ convert-bad-apple:
 	./scripts/convert-bad-apple
 
 
+#opt: ffmpeg -i logo.jpg -vf scale=100:100 logo.bmp
 convert-oslogo:
 	python scripts/convert-logo.py
+
+
+
+
+
+
+
+
+
+

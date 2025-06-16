@@ -2069,7 +2069,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         printf(ctx->GOP, &ConOut, "1st subpage: %lx\r\n", subPtr);
         printf(ctx->GOP, &ConOut, "2nd subpage: %lx\r\n", subPtr2);
         
-
+        printf(ctx->GOP, &ConOut, "\r\n\n                            (Logo designed by Serafim Kulukundis)\r\n");
         //copy framebuffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
     }

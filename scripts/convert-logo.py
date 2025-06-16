@@ -2,8 +2,8 @@ from PIL import Image
 import struct
 
 # Configuration
-WIDTH = 200
-HEIGHT = 200
+WIDTH = 100
+HEIGHT = 100
 INPUT_IMAGE = "data/logo/logo.bmp"
 OUTPUT = "data/logo.nvideo"
 
