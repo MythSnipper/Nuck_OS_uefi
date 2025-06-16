@@ -2035,7 +2035,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         printf(ctx->GOP, &title, " Version %u.%u!\r\n", versionMajor, versionMinor);
 
         //play video
-        if(e > 150){
+        if(e > 5){
             playVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - video_width, 0, video_format, video_addr, video_width, video_height, video_frameCount, &video_frameCounter, true, 4);
         }
         else{
@@ -2044,6 +2044,14 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         //GOPDrawImage(ctx->GOP, 0, 0, 500, 500, (uint8_t*)10000000, 0);
         heap_display(ctx->heap, ctx->GOP, &HeapOut);
         
+        uint8_t* ptr = alloc.freeListStart;
+        uint32_t nodeCount = 0;
+        while(*ptr != NULL){
+            printf(ctx->GOP, &ConOut, "\r\n\nsubpage allocator:\r\nNode %x points to %x", ptr, *ptr);
+            ptr = (uint8_t*)*ptr;
+            nodeCount++;
+            for(uint64_t i = 0;i < 20000000; i++);
+        }
         //copy framebuffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
     }
@@ -2165,7 +2173,16 @@ uint16_t pic_get_isr(){
 //dynamic memory allocation functions
 void subpage_alloc_init(KERNEL_SUBPAGE_ALLOCATOR* alloc){
     alloc->freeListStart = heap_alloc(alloc->heap, 1);
-    for
+
+    uint64_t* prev = (uint64_t*)alloc->freeListStart;
+    uint64_t* curr;
+    for(uint64_t offset = 1;offset < 64;offset++){
+        curr = (uint64_t*)(&alloc->freeListStart[offset]); //current block
+        *prev = (uint64_t)curr; //prev points to current block
+        prev = curr; //update prev pointer
+    }
+    *prev = 0; //last page(node in linked list)
+    alloc->freeListEnd = (uint8_t*) prev;
 }
 
 void heap_init(KERNEL_HEAP* heap){
