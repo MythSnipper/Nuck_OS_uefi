@@ -8,6 +8,8 @@
         "span": "c",
         "string_view": "c",
         "string": "c",
-        "cstdint": "c"
+        "cstdint": "c",
+        "compare": "c",
+        "format": "c"
     }
 }

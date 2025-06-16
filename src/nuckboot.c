@@ -68,13 +68,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
 
     //used to store the volume on the disk
     EFI_FILE_PROTOCOL* root;
-    EFI_FILE_PROTOCOL* kernel_file;
-    UINT64 kernel_size;
-    EFI_PHYSICAL_ADDRESS kernel_addr;
 
-    EFI_FILE_PROTOCOL* file;
-    UINT64 file_size;
-    EFI_PHYSICAL_ADDRESS file_addr;
+    EFI_PHYSICAL_ADDRESS kernel_addr;
+    EFI_PHYSICAL_ADDRESS video_addr;
 
     //GOP variables
     EFI_GUID GOPGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
@@ -125,28 +121,13 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                 case 0x0E: {
                     Print(L"loading kernel and data\r\n");
                     root = openVolume(ST, ImageHandle); //opens root of filesystem of boot device
-
-                    //open file
-                    kernel_file = openFile(root, L"kernel.bin");
-                    //get file size
-                    kernel_size = getFileSize(ST, kernel_file);
-                    //load kernel binary
-                    status = uefi_call_wrapper(ST->BootServices->AllocatePool, 3, EfiLoaderData, kernel_size, &kernel_addr);
-                    //read file to kernel address
-                    uefi_call_wrapper(kernel_file->Read, 3, kernel_file, &kernel_size, kernel_addr);  
                     
-                    //open file
-                    file = openFile(root, L"video.nvideo");
-                    //get file size
-                    file_size = getFileSize(ST, file);
-                    //load kernel binary
-                    status = uefi_call_wrapper(ST->BootServices->AllocatePool, 3, EfiLoaderData, file_size, &file_addr);
-                    //read file to kernel address
-                    uefi_call_wrapper(kernel_file->Read, 3, file, &file_size, file_addr);  
 
-                    //close file
-                    closeFile(kernel_file);
-                    closeFile(file);
+                    kernel_addr = loadFile(ST, root, L"kernel.bin");
+                    video_addr = loadFile(ST, root, L"video.nvideo");
+
+
+
                     Print(L"kernel & data load success\r\n");
                     break;
                 }
@@ -330,7 +311,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         kernel_stack,
         kernel_stack_size,
         &heap,
-        file_addr
+        video_addr
     };
 
     //switch to kernel stack and call start of kernel image
@@ -349,6 +330,23 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     while(true);
     return EFI_SUCCESS;
 }
+
+EFI_PHYSICAL_ADDRESS loadFile(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename){
+    EFI_FILE_PROTOCOL* file;
+    UINT64 size;
+    EFI_PHYSICAL_ADDRESS addr;
+
+    file = openFile(root, filename);
+    size = getFileSize(ST, file);
+    uefi_call_wrapper(ST->BootServices->AllocatePool, 3, EfiLoaderData, size, &addr);
+    uefi_call_wrapper(file->Read, 3, file, &size, addr);
+
+    closeFile(file);
+    return addr;
+}
+
+
+
 
 void closeFile(EFI_FILE_PROTOCOL* file){
     EFI_STATUS status;

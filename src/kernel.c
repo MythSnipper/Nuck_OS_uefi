@@ -1983,16 +1983,18 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     uint32_t video_frameCounter = 0;
     uint32_t e = 0;
 
-    
+    //MEM ALLOC STUFFFFFF IDK
     heap_init(ctx->heap);   
     void* testPtr = heap_alloc(ctx->heap, 2);
     void* testPtr2 = heap_alloc(ctx->heap, 1);
     void* testPtr3 = heap_alloc(ctx->heap, 3);
-    heap_free(ctx->heap, testPtr2, 1);
     
     KERNEL_SUBPAGE_ALLOCATOR alloc = {ctx->heap, NULL, NULL};
     subpage_alloc_init(&alloc);
-
+    subpage_alloc_expand(&alloc);
+    void* subPtr = subpage_alloc(&alloc);
+    void* subPtr2 = subpage_alloc(&alloc);
+    heap_free(ctx->heap, testPtr, 1);
 
     while(true){
         title = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
@@ -2035,29 +2037,53 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         printf(ctx->GOP, &title, " Version %u.%u!\r\n", versionMajor, versionMinor);
 
         //play video
-        if(e > 5){
+        if(e > 200){
             playVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - video_width, 0, video_format, video_addr, video_width, video_height, video_frameCount, &video_frameCounter, true, 4);
+        
         }
         else{
             e++;
         }
         //GOPDrawImage(ctx->GOP, 0, 0, 500, 500, (uint8_t*)10000000, 0);
         heap_display(ctx->heap, ctx->GOP, &HeapOut);
-        
+        printf(ctx->GOP, &ConOut, "\r\n\nsubpage allocator: \r\n%lx to %lx\r\n", alloc.freeListStart, alloc.freeListEnd);
+        printf(ctx->GOP, &ConOut, "1st subpage: %lx\r\n", subPtr);
+        printf(ctx->GOP, &ConOut, "2nd subpage: %lx\r\n", subPtr2);
+
         uint8_t* ptr = alloc.freeListStart;
         uint32_t nodeCount = 0;
-        while(*ptr != NULL){
-            printf(ctx->GOP, &ConOut, "\r\n\nsubpage allocator:\r\nNode %x points to %x", ptr, *ptr);
+        while(ptr != NULL){
             ptr = (uint8_t*)*ptr;
             nodeCount++;
-            for(uint64_t i = 0;i < 20000000; i++);
         }
-        printf("Total:")
-        //copy framebu ffer
+        printf(ctx->GOP, &ConOut, "Total nodes: %d\r\n", nodeCount);
+
+        //copy framebuffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
     }
     while(true);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 //PIC definitions
@@ -2171,33 +2197,70 @@ uint16_t pic_get_isr(){
 
 
 
+
+
+
+
+
+
 //dynamic memory allocation functions
 void subpage_alloc_init(KERNEL_SUBPAGE_ALLOCATOR* alloc){
     alloc->freeListStart = heap_alloc(alloc->heap, 1);
 
-    uint64_t* prev = (uint64_t*)alloc->freeListStart;
-    uint64_t* curr;
-    for(uint64_t offset = 1;offset < 64;offset++){
-        curr = (uint64_t*)(&alloc->freeListStart[offset]); //current block
-        *prev = (uint64_t)curr; //prev points to current block
-        prev = curr; //update prev pointer
+    uint64_t prev_addr = (uint64_t)alloc->freeListStart;
+    uint64_t curr_addr;
+    for(uint8_t offset = 1;offset < 64;offset++){
+        curr_addr = (uint64_t)(alloc->freeListStart + 64 * offset); //current block
+        *(uint64_t*)prev_addr = curr_addr; //prev points to current block
+        prev_addr = curr_addr; //update prev pointer
     }
-    *prev = 0; //last page(node in linked list)
-    alloc->freeListEnd = (uint8_t*) prev;
+    *(uint64_t*)prev_addr = 0; //last page(node in linked list)
+    alloc->freeListEnd = (uint8_t*)prev_addr;
+}
+void* subpage_alloc(KERNEL_SUBPAGE_ALLOCATOR* alloc){
+    if(alloc->freeListStart == NULL){
+        return (void*)0;
+    }
+    void* ret = (void*)alloc->freeListStart;
+    alloc->freeListStart = (uint8_t*)(*alloc->freeListStart);
+    return ret;
+}
+void subpage_free(KERNEL_SUBPAGE_ALLOCATOR* alloc, void* addr){
+    if(addr == NULL){
+        return;
+    }
+    *((uint64_t*)addr) = (uint64_t)alloc->freeListStart;
+    alloc->freeListStart = (uint8_t*)addr;
+}
+void subpage_alloc_expand(KERNEL_SUBPAGE_ALLOCATOR* alloc){
+    uint8_t* newListStart = heap_alloc(alloc->heap, 1);
+
+    uint64_t prev_addr = (uint64_t)newListStart;
+    uint64_t curr_addr;
+    for(uint8_t offset = 1;offset < 64;offset++){
+        curr_addr = (uint64_t)(newListStart + 64 * offset); //current block
+        *(uint64_t*)prev_addr = curr_addr; //prev points to current block
+        prev_addr = curr_addr; //update prev pointer
+    }
+    *(uint64_t*)prev_addr = 0; //last page(node in linked list)
+    uint8_t* newListEnd = (uint8_t*)prev_addr;
+
+    *((uint64_t*)alloc->freeListEnd) = (uint64_t)newListStart; //end of old last subpage points to first new subpage
+    alloc->freeListEnd = (uint8_t*)newListEnd;
 }
 
 void heap_init(KERNEL_HEAP* heap){
     //zero out heap map
-    for(uint32_t offset = 0;offset < 4096;offset++){
+    for(uint16_t offset = 0;offset < 4096;offset++){
         *(heap->map + offset) = 0;
     }
 }
-void* heap_alloc(KERNEL_HEAP* heap, uint32_t pages){
+void* heap_alloc(KERNEL_HEAP* heap, uint64_t pages){
     //two pointers to check start block to end block
-    uint32_t start_block = 0;
-    uint32_t end_block = 0;
+    uint64_t start_block = 0;
+    uint64_t end_block = 0;
     //go through heap map
-    for(uint32_t offset = 0;offset < 4096;offset++){
+    for(uint16_t offset = 0;offset < 4096;offset++){
         //loop through every bit
         for(int8_t shift = 7;shift >= 0;shift--){
             uint8_t byte = *(uint8_t*)(heap->map + offset);
@@ -2216,32 +2279,32 @@ void* heap_alloc(KERNEL_HEAP* heap, uint32_t pages){
     return (void*)0; //return null
     found_free_pages:
     //write 1 to the heap map range start_block to end_block
-    for(uint32_t free_block = start_block;free_block < end_block;free_block++){
+    for(uint64_t free_block = start_block;free_block < end_block;free_block++){
         //calculate heap map address and shift from free_block
-        uint32_t heap_map_offset = free_block / 8;
-        uint32_t heap_map_shift = 7 - (free_block % 8);
+        uint8_t heap_map_offset = free_block / 8;
+        uint8_t heap_map_shift = 7 - (free_block % 8);
         //write 1
         heap->map[heap_map_offset] |= 1 << heap_map_shift;
     }
     //return address of start_block in the heap
     return (void*)(heap->heap + 4096 * start_block);
 }
-void heap_free(KERNEL_HEAP* heap, void* addr, uint32_t pages){
+void heap_free(KERNEL_HEAP* heap, void* addr, uint64_t pages){
     //calculate start block
-    uint32_t start_block = ((uint8_t*)addr - heap->heap)/4096;
-    for(uint32_t c = start_block;c < start_block + pages;c++){
+    uint64_t start_block = ((uint8_t*)addr - heap->heap)/4096;
+    for(uint64_t c = start_block;c < start_block + pages;c++){
         //calculate heap map address and shift from free_block
-        uint32_t heap_map_offset = c / 8;
-        uint32_t heap_map_shift = 7 - (c % 8);
+        uint8_t heap_map_offset = c / 8;
+        uint8_t heap_map_shift = 7 - (c % 8);
         //write 1
         heap->map[heap_map_offset] &= ~(1 << heap_map_shift);
     }
 }
 void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut){
-    uint32_t displayed = 0;
-    uint32_t limit = 30;
+    uint64_t displayed = 0;
+    uint64_t limit = 30;
     //go through heap map
-    for(uint32_t offset = 0;offset < 4096;offset++){
+    for(uint64_t offset = 0;offset < 4096;offset++){
         //loop through every bit
         for(int8_t shift = 7;shift >= 0;shift--){
             uint8_t byte = *(uint8_t*)(heap->map + offset);
@@ -2327,6 +2390,9 @@ void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t imgwidth, uint3
                 }
             }
             break;
+        }
+        case 1: { //BGR 3 byte per pixel
+
         }
     }
 }
@@ -2669,9 +2735,6 @@ uint64_t rdtsc(){
     asm volatile("rdtsc":"=a"(low),"=d"(high));
     return ((uint64_t)high << 32) | low;
 }
-
-
-
 
 void isr_0(){
     asm volatile("iretq");

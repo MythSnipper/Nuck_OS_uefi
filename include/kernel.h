@@ -96,11 +96,15 @@ void triple_fault();
 
 //dynamic memory allocation functions
 void subpage_alloc_init(KERNEL_SUBPAGE_ALLOCATOR* alloc);
+void* subpage_alloc(KERNEL_SUBPAGE_ALLOCATOR* alloc);
+void subpage_free(KERNEL_SUBPAGE_ALLOCATOR* alloc, void* addr);
+void subpage_alloc_expand(KERNEL_SUBPAGE_ALLOCATOR* alloc);
+
 
 
 void heap_init(KERNEL_HEAP* heap);
-void* heap_alloc(KERNEL_HEAP* heap, uint32_t pages);
-void heap_free(KERNEL_HEAP* heap, void* addr, uint32_t pages);
+void* heap_alloc(KERNEL_HEAP* heap, uint64_t pages);
+void heap_free(KERNEL_HEAP* heap, void* addr, uint64_t pages);
 void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut);
 
 

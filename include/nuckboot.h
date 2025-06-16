@@ -25,6 +25,9 @@ typedef struct{
     EFI_PHYSICAL_ADDRESS               file;
 } KERNEL_CONTEXT_TABLE;
 
+
+
+EFI_PHYSICAL_ADDRESS loadFile(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename);
 void closeFile(EFI_FILE_PROTOCOL* file);
 UINT64 getFileSize(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* file);
 EFI_FILE_PROTOCOL* openFile(EFI_FILE_PROTOCOL* volume, CHAR16* filename);
