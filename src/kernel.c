@@ -2052,7 +2052,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
             nodeCount++;
             for(uint64_t i = 0;i < 20000000; i++);
         }
-        //copy framebuffer
+        printf("Total:")
+        //copy framebu ffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
     }
     while(true);
