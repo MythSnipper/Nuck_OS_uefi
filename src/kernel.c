@@ -2026,7 +2026,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
 
         //play video
-        if(e > 100){
+        if(e > 30){
             playVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - video_width, 0, video_format, video_addr, video_width, video_height, video_frameCount, &video_frameCounter, true, 4);
         }
         else{
