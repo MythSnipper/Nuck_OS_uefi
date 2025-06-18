@@ -188,11 +188,18 @@ qemu-slow:
 	-usb -device usb-storage,drive=nuckusb \
     -drive file=$(DEVICE),if=none,format=raw,id=nuckusb
 
-#convert downloaded youtube video "video.mp4" to BGR bmp video
+
+
+
+
+
+IF ?= /dev/null
+OF ?= /dev/null
+
+#convert downloaded youtube video "video.mp4" to bmp images
 convert-video-yt:
 	rm data/frames/*
 	ffmpeg -i data/video.mp4 -vf scale=640:360 -r 2 data/frames/frame_%04d.bmp
-	python scripts/convert-yt.py
 
 #convert jpg images to bmp frames
 convert-bad-apple-frames:
