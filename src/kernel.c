@@ -1971,27 +1971,12 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
     KERNEL_TEXT_OUTPUT HeapOut = {VGAfont, 8, 16, 1, 1, 0, 0, 0, 0, hex(0xFF10F0), hex(0x000000), false};
 
+    KERNEL_NVIDEO bad_apple;
+    KERNEL_NVIDEO oslogo;
 
-    //parse video headers
-    uint8_t* video_addr = (uint8_t*) ctx->videoFile;
-    uint32_t video_format = *(uint32_t*)(video_addr);
-    uint32_t video_width = *(uint32_t*)(video_addr+4);
-    uint32_t video_height = *(uint32_t*)(video_addr+8);
-    uint32_t video_frameCount = *(uint32_t*)(video_addr+12);
-    video_addr += 16;
-
-    uint32_t video_frameCounter = 0;
-    uint32_t e = 0;
-
-    //parse image header
-    uint8_t* image_addr = (uint8_t*) ctx->imageFile;
-    uint32_t image_format = *(uint32_t*)(image_addr);
-    uint32_t image_width = *(uint32_t*)(image_addr+4);
-    uint32_t image_height = *(uint32_t*)(image_addr+8);
-    uint32_t image_frameCount = *(uint32_t*)(image_addr+12);
-    image_addr += 16;
-
-
+    //parse media headers
+    NVIDEOParseHeader(&bad_apple, (uint8_t*) ctx->videoFile);
+    NVIDEOParseHeader(&oslogo, (uint8_t*) ctx->imageFile);
 
     //MEM ALLOC STUFFFFFF IDK
     heap_init(ctx->heap);   
@@ -2005,6 +1990,14 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     void* subPtr = subpage_alloc(&alloc);
     void* subPtr2 = subpage_alloc(&alloc);
     heap_free(ctx->heap, testPtr, 1);
+
+
+
+
+
+
+
+
 
     while(true){
         title = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
@@ -2021,27 +2014,17 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         */
         GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x00807F), true);
 
-
-
-
-
-        //play video
-        if(e > 30){
-            playVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - video_width, 0, video_format, video_addr, video_width, video_height, video_frameCount, &video_frameCounter, true, 4);
-        }
-        else{
-            e++;
-        }
+        GOPPlayVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - bad_apple.width, 0, &bad_apple, true, 3);
 
         //logo
-        GOPDrawImage(ctx->GOP, ctx->GOP->Info->HorizontalResolution - image_width - 10, ctx->GOP->Info->VerticalResolution - image_height - 10, image_width, image_height, image_addr, image_format);
+        GOPDrawImage(ctx->GOP, ctx->GOP->Info->HorizontalResolution - oslogo.width - 10, ctx->GOP->Info->VerticalResolution - oslogo.height - 10, &oslogo);
         
 
 
-        printf(ctx->GOP, &ConOut, "operating system of the future\r\n");
+        printf(ctx->GOP, &ConOut, "(operating system of the future)\r\n");
         printf(ctx->GOP, &ConOut, "Display pixel format: %d\r\n", ctx->GOP->Info->PixelFormat);
         printf(ctx->GOP, &ConOut, "Code segment: %x\r\nData segment: %x\r\nCPU Vendor: %s\r\n", CODE_SEG, DATA_SEG, CPUVendor);
-        printf(ctx->GOP, &ConOut, "Video resolution: %dx%d\r\nformat %d\r\nframe %d/%d\r\n", video_width, video_height, video_format, video_frameCounter+1, video_frameCount);
+        printf(ctx->GOP, &ConOut, "Video resolution: %dx%d\r\nformat %d\r\nframe %d/%d\r\n", bad_apple.width, bad_apple.height, bad_apple.format, bad_apple.frameCounter+1, bad_apple.frameCount);
 
         printf(ctx->GOP, &title, "Welcome to \r\n");
         title.frontColor = 0xE50000;title.backColor = 0x000000;
@@ -2060,7 +2043,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         printf(ctx->GOP, &title, "S");
         title.frontColor = 0xFF10F0;title.backColor = 0x000000;
 
-        printf(ctx->GOP, &title, " Version %u.%u!\r\n", versionMajor, versionMinor);
+        printf(ctx->GOP, &title, "\r\n Version %u.%u!\r\n", versionMajor, versionMinor);
 
 
         heap_display(ctx->heap, ctx->GOP, &HeapOut);
@@ -2069,7 +2052,10 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         printf(ctx->GOP, &ConOut, "1st subpage: %lx\r\n", subPtr);
         printf(ctx->GOP, &ConOut, "2nd subpage: %lx\r\n", subPtr2);
         
-        printf(ctx->GOP, &ConOut, "\r\n\n                            (Logo designed by Serafim Kulukundis)\r\n");
+        ConOut.backColor = hex(0x00807F);
+        printf(ctx->GOP, &ConOut, "\r\n\n                            ");
+        ConOut.backColor = hex(0x000000);
+        printf(ctx->GOP, &ConOut, "(Logo designed by Serafim Kulukundis)\r\n");
         //copy framebuffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
     }
@@ -2358,31 +2344,40 @@ void triple_fault(){
 }
 
 //graphical functions
-void playVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t format, uint8_t* addr, uint32_t frameWidth, uint32_t frameHeight, uint32_t frameCount, uint32_t* frameCounter, bool loop, uint8_t skips){
-    if(*frameCounter >= frameCount){
+void NVIDEOParseHeader(KERNEL_NVIDEO* video, uint8_t* addr){
+    video->addr = addr + 16;
+    video->format = *(uint32_t*)addr;
+    video->width = *(uint32_t*)(addr+4);
+    video->height = *(uint32_t*)(addr+8);
+    video->frameCount = *(uint32_t*)(addr+12);
+    video->frameCounter = 0;
+}
+void GOPPlayVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bool loop, uint8_t skips){
+    if(video->frameCounter >= video->frameCount){
         return;
     }
-    uint8_t* frameAddr = (uint8_t*)addr;
-    switch(format){
+    uint8_t* addr = (uint8_t*)(video->addr);
+    switch(video->format){
         case 0: { //black and white, packed
-            frameAddr += (*frameCounter) * (frameWidth * frameHeight / 8);
-            GOPDrawImage(GOP, x, y, frameWidth, frameHeight, frameAddr, format);
+            video->addr = video->addr + ((video->frameCounter) * (video->width * video->height / 8));
+            GOPDrawImage(GOP, x, y, video);
+            video->addr = addr;
             break;
         }
     }
-    (*frameCounter)+=skips;
-    if(*frameCounter >= frameCount && loop){
-        *frameCounter = 0;
+    (video->frameCounter)+=skips;
+    if(video->frameCounter >= video->frameCount && loop){
+        video->frameCounter = 0;
     }
 }
-void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t imgwidth, uint32_t imgheight, uint8_t* imgaddr, uint32_t format){
-    switch(format){
+void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* img){
+    switch(img->format){
         case 0: { //black and white, packed, imgwidth is number of pixels, imgheight is number of pixels
-            uint32_t bpr = imgwidth/8; //bytes per row
-            for(uint32_t row = 0;row < imgheight;row++){
+            uint32_t bpr = img->width/8; //bytes per row
+            for(uint32_t row = 0;row < img->height;row++){
                 for(uint32_t byte = 0;byte < bpr;byte++){
                     //calculate byte
-                    uint8_t b = imgaddr[row * bpr + byte];
+                    uint8_t b = img->addr[row * bpr + byte];
                     uint32_t draw_x = x + byte * 8;
                     uint32_t draw_y = y + row;
                     //draw 8 pixels
@@ -2396,12 +2391,12 @@ void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t imgwidth, uint3
             break;
         }
         case 1: { //RGB 3 byte per pixel
-            uint32_t bpr = imgwidth * 3; //bytes per row
-            for(uint32_t row = 0;row < imgheight;row++){
-                for(uint32_t col = 0;col < imgwidth;col++){
+            uint32_t bpr = img->width * 3; //bytes per row
+            for(uint32_t row = 0;row < img->height;row++){
+                for(uint32_t col = 0;col < img->width;col++){
                     //row, col is pixel position
                     //get pixel byte position
-                    uint32_t color_byte = *(uint32_t*)(imgaddr + row * bpr + col * 3);
+                    uint32_t color_byte = *(uint32_t*)(img->addr + row * bpr + col * 3);
                     uint32_t draw_x = x + col;
                     uint32_t draw_y = y + row;
                     GOPPutPixel(GOP, draw_x, draw_y, hex(color_byte)); //color is ARGB;

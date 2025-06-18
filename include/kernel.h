@@ -52,6 +52,15 @@ typedef struct{
     uint8_t  useAbsolutePosition;
 } KERNEL_TEXT_OUTPUT;
 
+typedef struct __attribute__((aligned(32))){
+    uint8_t* addr;
+    uint32_t format;
+    uint32_t width;
+    uint32_t height;
+    uint32_t frameCount;
+    uint32_t frameCounter;
+} KERNEL_NVIDEO;
+
 typedef struct{
     uint8_t* map;
     uint8_t* heap;
@@ -110,8 +119,9 @@ void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut);
 
 
 //graphical functions
-void playVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t format, uint8_t* addr, uint32_t frameWidth, uint32_t frameHeight, uint32_t frameCount, uint32_t* frameCounter, bool loop, uint8_t skips);
-void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t imgwidth, uint32_t imgheight, uint8_t* imgaddr, uint32_t format);
+void NVIDEOParseHeader(KERNEL_NVIDEO* video, uint8_t* addr);
+void GOPPlayVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bool loop, uint8_t skips);
+void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* img);
 void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t* str, ...);
 void printFloat(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec);
 void printUfloat(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec);
