@@ -50,6 +50,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     IDTPtr.size = sizeof(IDT)-1;
     IDTPtr.offset = (uint64_t)&IDT;
 
+    outb(0xA1, 0xFF); // Mask all IRQs on slave PIC
+    outb(0x21, 0xFF); // Mask all IRQs on master PIC
 
     //interrupts
     {
@@ -326,8 +328,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         : "memory"
     );
 
-    uint32_t versionMajor = 1;
-    uint32_t versionMinor = 2;
+    uint8_t versionMajor = 1;
+    uint8_t versionMinor = 2;
     //font
     uint8_t VGAfont[] = {
         //32
@@ -1947,14 +1949,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         0b00000000
     };
 
-    //get CPU vendor
-    uint32_t CPUVendor_r[4];
-    cpuid_string(0, CPUVendor_r);
-    uint8_t CPUVendor[13];
-    ((uint32_t*)CPUVendor)[0] = CPUVendor_r[1];
-    ((uint32_t*)CPUVendor)[1] = CPUVendor_r[3];
-    ((uint32_t*)CPUVendor)[2] = CPUVendor_r[2];
-    CPUVendor[12] = 0;
+    uint8_t* CPUVendor = cpuid_get_vendor();
 
     //Display
     //swap the buffers so the GOP framebuffer is actually the backbuffer
@@ -2076,115 +2071,11 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
 
 
-
-
-
-//PIC definitions
-#define PIC1		0x20		/* IO base address for master PIC */
-#define PIC2		0xA0		/* IO base address for slave PIC */
-#define PIC1_COMMAND	PIC1
-#define PIC1_DATA	(PIC1+1)
-#define PIC2_COMMAND	PIC2
-#define PIC2_DATA	(PIC2+1)
-#define PIC_EOI		0x20		/* End-of-interrupt command code */
 //PIC functions
-void PIC_sendEOI(uint8_t irq){
-    if(irq >= 8){ //slave PIC
-        outb(PIC2_COMMAND, PIC_EOI);
-    }
-    outb(PIC1_COMMAND, PIC_EOI); //master PIC
-}
-
-#define ICW1_ICW4	0x01		/* Indicates that ICW4 will be present */
-#define ICW1_SINGLE	0x02		/* Single (cascade) mode */
-#define ICW1_INTERVAL4	0x04		/* Call address interval 4 (8) */
-#define ICW1_LEVEL	0x08		/* Level triggered (edge) mode */
-#define ICW1_INIT	0x10		/* Initialization - required! */
-
-#define ICW4_8086	0x01		/* 8086/88 (MCS-80/85) mode */
-#define ICW4_AUTO	0x02		/* Auto (normal) EOI */
-#define ICW4_BUF_SLAVE	0x08		/* Buffered mode/slave */
-#define ICW4_BUF_MASTER	0x0C		/* Buffered mode/master */
-#define ICW4_SFNM	0x10		/* Special fully nested (not) */
-/* reinitialize the PIC controllers, giving them specified vector offsets
-   rather than 8h and 70h, as configured by default
-arguments:
-	offset1 - vector offset for master PIC
-		vectors on the master become offset1..offset1+7
-	offset2 - same for slave PIC: offset2..offset2+7
-*/
-void PIC_remap(uint8_t offset1, uint8_t offset2){
-	outb(PIC1_COMMAND, ICW1_INIT | ICW1_ICW4);  // starts the initialization sequence (in cascade mode)
-	io_wait();
-	outb(PIC2_COMMAND, ICW1_INIT | ICW1_ICW4);
-	io_wait();
-	outb(PIC1_DATA, offset1);                 // ICW2: Master PIC vector offset
-	io_wait();
-	outb(PIC2_DATA, offset2);                 // ICW2: Slave PIC vector offset
-	io_wait();
-	outb(PIC1_DATA, 4);                       // ICW3: tell Master PIC that there is a slave PIC at IRQ2 (0000 0100)
-	io_wait();
-	outb(PIC2_DATA, 2);                       // ICW3: tell Slave PIC its cascade identity (0000 0010)
-	io_wait();
-	outb(PIC1_DATA, ICW4_8086);               // ICW4: have the PICs use 8086 mode (and not 8080 mode)
-	io_wait();
-	outb(PIC2_DATA, ICW4_8086);
-	io_wait();
-	// Unmask both PICs.
-	outb(PIC1_DATA, 0);
-	outb(PIC2_DATA, 0);
-}
 void PIC_disable(){
-    outb(PIC1_DATA, 0xff);
-    outb(PIC2_DATA, 0xff);
+    outb(0x21, 0xff); //mask master PIC
+    outb(0xA1, 0xff); //mask slave PIC
 }
-void IRQ_set_mask(uint8_t IRQline){
-    uint16_t port;
-    uint8_t value;
-
-    if(IRQline < 8) {
-        port = PIC1_DATA;
-    } else {
-        port = PIC2_DATA;
-        IRQline -= 8;
-    }
-    value = inb(port) | (1 << IRQline);
-    outb(port, value);        
-}
-void IRQ_clear_mask(uint8_t IRQline){
-    uint16_t port;
-    uint8_t value;
-
-    if(IRQline < 8) {
-        port = PIC1_DATA;
-    } else {
-        port = PIC2_DATA;
-        IRQline -= 8;
-    }
-    value = inb(port) & ~(1 << IRQline);
-    outb(port, value);        
-}
-#define PIC_READ_IRR                0x0a    /* OCW3 irq ready next CMD read */
-#define PIC_READ_ISR                0x0b    /* OCW3 irq service next CMD read */
-/* Helper func */
-static uint16_t __pic_get_irq_reg(int ocw3){
-    /* OCW3 to PIC CMD to get the register values.  PIC2 is chained, and
-     * represents IRQs 8-15.  PIC1 is IRQs 0-7, with 2 being the chain */
-    outb(PIC1_COMMAND, ocw3);
-    outb(PIC2_COMMAND, ocw3);
-    return (inb(PIC2_COMMAND) << 8) | inb(PIC1_COMMAND);
-}
-/* Returns the combined value of the cascaded PICs irq request register */
-uint16_t pic_get_irr(){
-    return __pic_get_irq_reg(PIC_READ_IRR);
-}
-/* Returns the combined value of the cascaded PICs in-service register */
-uint16_t pic_get_isr(){
-    return __pic_get_irq_reg(PIC_READ_ISR);
-}
-
-
-
 
 
 
@@ -2729,16 +2620,33 @@ static inline void io_wait(){
 static inline void cpuid(int code, uint32_t* a, uint32_t* d){
     asm volatile("cpuid" : "=a"(*a), "=d"(*d) : "0"(code) : "ebx", "ecx");
 }
-static inline int cpuid_string(int code, uint32_t where[4]){
-  asm volatile("cpuid":"=a"(*where),"=b"(*(where+1)),
-               "=c"(*(where+2)),"=d"(*(where+3)):"a"(code));
-  return (int)where[0];
+uint8_t* cpuid_get_vendor(){
+    uint32_t CPUVendor_r[4];
+    asm volatile("cpuid":"=a"(*CPUVendor_r),"=b"(*(CPUVendor_r+1)),
+                "=c"(*(CPUVendor_r+2)),"=d"(*(CPUVendor_r+3)):"a"(0));
+    uint8_t CPUVendor[13];
+    ((uint32_t*)CPUVendor)[0] = CPUVendor_r[1];
+    ((uint32_t*)CPUVendor)[1] = CPUVendor_r[3];
+    ((uint32_t*)CPUVendor)[2] = CPUVendor_r[2];
+    CPUVendor[12] = 0;
+
+    return CPUVendor;
 }
 uint64_t rdtsc(){
     uint32_t low, high;
     asm volatile("rdtsc":"=a"(low),"=d"(high));
     return ((uint64_t)high << 32) | low;
 }
+
+
+
+
+
+
+
+
+
+
 
 void isr_0(){
     asm volatile("iretq");

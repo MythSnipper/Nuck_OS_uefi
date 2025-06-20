@@ -90,14 +90,11 @@ typedef struct{
 
 typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;
 
-void PIC_sendEOI(uint8_t irq);
-void PIC_remap(uint8_t offset1, uint8_t offset2);
+
+//PIC functions
 void PIC_disable();
-void IRQ_set_mask(uint8_t IRQline);
-void IRQ_clear_mask(uint8_t IRQline);
-static uint16_t __pic_get_irq_reg(int ocw3);
-uint16_t pic_get_irr();
-uint16_t pic_get_isr();
+
+
 
 void setIDTEntry(IDT_Entry* entry, uint16_t segment, uint64_t offset, uint8_t ISTOffset, uint8_t attributes);
 void setGDTEntry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags);
@@ -143,7 +140,7 @@ static inline uint16_t inw(uint16_t port);
 static inline uint32_t inl(uint16_t port);
 static inline void io_wait();
 static inline void cpuid(int code, uint32_t* a, uint32_t* d);
-static inline int cpuid_string(int code, uint32_t where[4]);
+uint8_t* cpuid_get_vendor();
 uint64_t rdtsc();
 
 

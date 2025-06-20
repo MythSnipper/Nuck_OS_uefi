@@ -10,21 +10,15 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     InitializeLib(ImageHandle, ST); //initialize runtime pointers
 
     //disable watchdog timer
-    uefi_call_wrapper(ST->BootServices->SetWatchdogTimer, 0, 0, 0x10000, 0, NULL);
+    uefi_call_wrapper(ST->BootServices->SetWatchdogTimer, 4, 0, 0x10000, 0, NULL);
 
     //simple keyboard loop to determine to reset or not to reset the display
-    Print(L"Reset display to standard VGA(80x25)(safe graphics)? (y/n/r/s):");
+    Print(L"Reset display to standard VGA(80x25)(safe graphics)? (y/n/r):");
     while(true){
         //keyboard input
         if(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) == EFI_SUCCESS){
             if(key.UnicodeChar == L'y'){
-                status = uefi_call_wrapper(ST->ConOut->SetMode, 2, ST->ConOut, 2);
-                if(EFI_ERROR(status)){
-                    status = uefi_call_wrapper(ST->ConOut->SetMode, 2, ST->ConOut, 1);
-                }
-                if(EFI_ERROR(status)){
-                    uefi_call_wrapper(ST->ConOut->SetMode, 2, ST->ConOut, 0);
-                }
+                uefi_call_wrapper(ST->ConOut->SetMode, 2, ST->ConOut, 0);
                 break;
             }
             else if(key.UnicodeChar == L'n'){
@@ -32,10 +26,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
             }
             else if(key.UnicodeChar == L'r'){
                 uefi_call_wrapper(ST->ConOut->Reset, 2, ST->ConOut, false);
-                break;
-            }
-            else if(key.UnicodeChar == L's'){
-                uefi_call_wrapper(ST->ConOut->SetMode, 2, ST->ConOut, 0);
                 break;
             }
         }
@@ -58,6 +48,10 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
 
     //very good message
     uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load Nuck OS kernel and data\r\nF5 to select GOP mode\r\nF6 to manually select GOP mode\r\nF7 to set GOP, get memory map and run Nuck OS kernel\r\nF8 to reset bootloader\r\n");
+    uefi_call_wrapper(ST->ConOut->OutputString, 3, ST->ConOut, L"\r\nNumber of configuration table entries: %d", ST->NumberOfTableEntries);
+
+
+
 
     //variables used in main logic
     UINTN MemoryMapSize = 0; //size of the memory map in bytes
@@ -331,6 +325,27 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     return EFI_SUCCESS;
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 EFI_PHYSICAL_ADDRESS loadFile(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename){
     EFI_FILE_PROTOCOL* file;
     UINT64 size;
@@ -344,9 +359,6 @@ EFI_PHYSICAL_ADDRESS loadFile(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wch
     closeFile(file);
     return addr;
 }
-
-
-
 
 void closeFile(EFI_FILE_PROTOCOL* file){
     EFI_STATUS status;
