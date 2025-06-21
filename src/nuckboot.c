@@ -1,5 +1,7 @@
 #include "../include/nuckboot.h"
 
+
+
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable){
     EFI_SYSTEM_TABLE* ST = SystemTable;
     EFI_INPUT_KEY key;
@@ -16,7 +18,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     Print(L"Reset display to standard VGA(80x25)(safe graphics)? (y/n/r):");
     while(true){
         //keyboard input
-        if(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) == EFI_SUCCESS){
+        if(uefi_call_wrapper(ST->ConIn->ReadKeyStroke, 2, ST->ConIn, &key) == EFI_SUCCESS){
             if(key.UnicodeChar == L'y'){
                 uefi_call_wrapper(ST->ConOut->SetMode, 2, ST->ConOut, 0);
                 break;
@@ -30,28 +32,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
             }
         }
     }
-    bootloader_start:
-    //clear console output, sets background color, cursor goes to 0, 0
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_CYAN, EFI_CYAN));
-    uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
-
-    //sets font color to light green on black
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
-    Print(L"hello world\r\n");
-
-    printLogo(ST);
-
-    printInfo(ST);
-
-    //sets font color to red on white
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
-
-    //very good message
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"F1 to shutdown\r\nF2 to reset text input\r\nF3 to view memory map\r\nF4 to load Nuck OS kernel and data\r\nF5 to select GOP mode\r\nF6 to manually select GOP mode\r\nF7 to set GOP, get memory map and run Nuck OS kernel\r\nF8 to reset bootloader\r\n");
-    uefi_call_wrapper(ST->ConOut->OutputString, 3, ST->ConOut, L"\r\nNumber of configuration table entries: %d", ST->NumberOfTableEntries);
-
-
-
 
     //variables used in main logic
     UINTN MemoryMapSize = 0; //size of the memory map in bytes
@@ -87,10 +67,49 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     EFI_PHYSICAL_ADDRESS kernel_heap_map; //kernel heap bitmap(1 page)
     EFI_PHYSICAL_ADDRESS kernel_heap; //kernel heap(4096 pages)
 
+    //DISPLAY MENU data
+    UINTN startColumn; //starting column and row
+    UINTN startRow; 
+    wchar_t* menuEntries[] = {
+        L"Automatic boot",
+        L"Load Nuck OS kernel and data",
+        L"Select GOP mode(auto)",
+        L"Select GOP mode(manual)",
+        L"Boot Nuck OS",
+        L"View memory map",
+        L"View configuration tables",
+        L"Shutdown",
+    };
+    UINTN menuEntriesCount = 8;
+    UINTN selectedEntryIndex = 0;
+
+    bootloader_start:
+    selectedEntryIndex = 0;
+    //clear console output, sets background color, cursor goes to 0, 0
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_MAGENTA, EFI_MAGENTA));
+    uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
+
+    //sets font color
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_MAGENTA));
+
+    printLogo(ST);
+    printInfo(ST);
+
+    //sets font color
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_MAGENTA));
+    //Print(L"Arrow keys/WASD to move, Enter to select, Esc to reset bootloader\r\n");
+
+    //save current cursor position because it's where the boot menu text starts
+    startColumn = ST->ConOut->Mode->CursorColumn;
+    startRow = ST->ConOut->Mode->CursorRow;
+    refreshEntries(ST, menuEntries, menuEntriesCount, selectedEntryIndex, startColumn, startRow);
+
     while(true){
         //keyboard input
         if(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) == EFI_SUCCESS){
+            
             //Basic text output
+            /*
             if(key.UnicodeChar == L'\r'){
                 uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"\r\n"); 
             }
@@ -98,188 +117,220 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                 buff[0] = key.UnicodeChar;
                 uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, buff);
             }
-            //Function keys
-            switch(key.ScanCode){
-                case 0x0B: {
-                    uefi_call_wrapper(ST->RuntimeServices->ResetSystem, 4, EfiResetShutdown, EFI_SUCCESS, 0, NULL);
-                    break;
-                }
-                case 0x0C: {
-                    uefi_call_wrapper(ST->ConIn->Reset, 2, ST->ConIn, false);
-                    break;
-                }
-                case 0x0D: {
-                    getMemoryMap(ST, &MemoryMapSize, &MemoryMap, &MapKey, &DescriptorSize, &DescriptorVersion);
-                    printMemoryMap(ST, MemoryMapSize, MemoryMap, MapKey, DescriptorSize, DescriptorVersion);
-                    break;
-                }
-                case 0x0E: {
-                    Print(L"loading kernel and data\r\n");
-                    root = openVolume(ST, ImageHandle); //opens root of filesystem of boot device
-                    
-                    kernel_addr = loadFile(ST, root, L"kernel.bin");
-                    video_addr = loadFile(ST, root, L"video.nvideo");
-                    image_addr = loadFile(ST, root, L"logo.nvideo");
+            */
+            //If it's escape then reset bootloader
+            if(key.ScanCode == SCAN_ESC){
+                goto bootloader_start;
+            }
 
-                    Print(L"files loaded successfully\r\n");
-                    break;
+            //Check if it's arrow keys
+            if(key.ScanCode == SCAN_UP || key.ScanCode == SCAN_DOWN || key.UnicodeChar == L'w' || key.UnicodeChar == L's'){
+                //Update index
+                if(key.ScanCode == SCAN_UP || key.UnicodeChar == L'w'){
+                    if(selectedEntryIndex > 0)selectedEntryIndex--;
                 }
-                case 0x0F: {
-                    //set GOP
-                    status = uefi_call_wrapper(ST->BootServices->LocateProtocol, 3, &GOPGuid, NULL, (void**) &GOP);
-                    if(EFI_ERROR(status)){
-                        Print(L"No GOP\r\n");
-                        while(1);
+                if(key.ScanCode == SCAN_DOWN || key.UnicodeChar == L's'){
+                    if(selectedEntryIndex < menuEntriesCount-1)selectedEntryIndex++;
+                }
+                //refresh entries display
+                refreshEntries(ST, menuEntries, menuEntriesCount, selectedEntryIndex, startColumn, startRow);
+            }
+
+            //Check if it's Enter
+            if(key.UnicodeChar == CHAR_CARRIAGE_RETURN){
+                switch(selectedEntryIndex){
+                    case 0: {
+                        //Auto boot
+                        break;
                     }
-                    status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP->Mode==NULL?0:GOP->Mode->Mode, &GOPInfoSize, &GOPInfo);
-                    //get the current video mode
-                    if(status == EFI_NOT_STARTED){
-                        status = uefi_call_wrapper(GOP->SetMode, 2, GOP, 0);
+                    case 1: {
+                        //Load kernel and data
+                        Print(L"loading kernel and data\r\n");
+                        root = openVolume(ST, ImageHandle); //opens root of filesystem of boot device
+                        
+                        kernel_addr = loadFile(ST, root, L"kernel.bin");
+                        video_addr = loadFile(ST, root, L"video.nvideo");
+                        image_addr = loadFile(ST, root, L"logo.nvideo");
+
+                        Print(L"files loaded successfully\r\n");
+                        break;
                     }
-                    if(EFI_ERROR(status)){
-                        Print(L"Unable to get GOP native mode\r\n");
-                    }
-                    else{
-                        GOPNativeMode = GOP->Mode->Mode;
-                        GOPNumModes = GOP->Mode->MaxMode;
-                    }
-                    Print(L"GOP native mode: %d\r\nGOP number of modes: %d\r\n", GOPNativeMode, GOPNumModes);
-                    //query GOP modes
-                    for(UINTN i = 0;i<GOPNumModes;i++){
-                        status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, i, &GOPInfoSize, &GOPInfo);
+                    case 2: {
+                        //auto select GOP
+                        //set GOP
+                        status = uefi_call_wrapper(ST->BootServices->LocateProtocol, 3, &GOPGuid, NULL, (void**) &GOP);
                         if(EFI_ERROR(status)){
-                            Print(L"Get mode %d failed!", i);
+                            Print(L"No GOP\r\n");
+                            while(1);
+                        }
+                        status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP->Mode==NULL?0:GOP->Mode->Mode, &GOPInfoSize, &GOPInfo);
+                        //get the current video mode
+                        if(status == EFI_NOT_STARTED){
+                            status = uefi_call_wrapper(GOP->SetMode, 2, GOP, 0);
+                        }
+                        if(EFI_ERROR(status)){
+                            Print(L"Unable to get GOP native mode\r\n");
                         }
                         else{
-                            Print(L"mode %d: %dx%d format %x%s\r\n", i, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, i == GOPNativeMode ? L"(current)" : L"");                  
+                            GOPNativeMode = GOP->Mode->Mode;
+                            GOPNumModes = GOP->Mode->MaxMode;
                         }
-                    }
-                    bestModeNum = 0;
-                    bestModePixelCount = 0;
-                    bestModeWidth = 0;
-                    bestModeHeight = 0;
-                    for(UINTN i = 0;i<GOPNumModes;i++){
-                        uefi_call_wrapper(GOP->QueryMode, 4, GOP, i, &GOPInfoSize, &GOPInfo);
-                        if(GOPInfo->PixelFormat != 1){
-                            continue;
+                        Print(L"GOP native mode: %d\r\nGOP number of modes: %d\r\n", GOPNativeMode, GOPNumModes);
+                        //query GOP modes
+                        for(UINTN i = 0;i<GOPNumModes;i++){
+                            status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, i, &GOPInfoSize, &GOPInfo);
+                            if(EFI_ERROR(status)){
+                                Print(L"Get mode %d failed!", i);
+                            }
+                            else{
+                                Print(L"mode %d: %dx%d format %x%s\r\n", i, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, i == GOPNativeMode ? L"(current)" : L"");                  
+                            }
                         }
-                        UINTN pixelCount = GOPInfo->HorizontalResolution * GOPInfo->VerticalResolution;
-                        if(pixelCount > bestModePixelCount){
-                            bestModePixelCount = pixelCount;
-                            bestModeNum = i;
-                            bestModeWidth = GOPInfo->HorizontalResolution;
-                            bestModeHeight = GOPInfo->VerticalResolution;
-                        }
-                        else if(pixelCount == bestModePixelCount){
-                            if(bestModeWidth > GOPInfo->HorizontalResolution){
+                        bestModeNum = 0;
+                        bestModePixelCount = 0;
+                        bestModeWidth = 0;
+                        bestModeHeight = 0;
+                        for(UINTN i = 0;i<GOPNumModes;i++){
+                            uefi_call_wrapper(GOP->QueryMode, 4, GOP, i, &GOPInfoSize, &GOPInfo);
+                            if(GOPInfo->PixelFormat != 1){
+                                continue;
+                            }
+                            UINTN pixelCount = GOPInfo->HorizontalResolution * GOPInfo->VerticalResolution;
+                            if(pixelCount > bestModePixelCount){
+                                bestModePixelCount = pixelCount;
                                 bestModeNum = i;
                                 bestModeWidth = GOPInfo->HorizontalResolution;
                                 bestModeHeight = GOPInfo->VerticalResolution;
                             }
+                            else if(pixelCount == bestModePixelCount){
+                                if(bestModeWidth > GOPInfo->HorizontalResolution){
+                                    bestModeNum = i;
+                                    bestModeWidth = GOPInfo->HorizontalResolution;
+                                    bestModeHeight = GOPInfo->VerticalResolution;
+                                }
+                            }
                         }
+                        uefi_call_wrapper(GOP->QueryMode, 4, GOP, bestModeNum, &GOPInfoSize, &GOPInfo);
+                        Print(L"Selected:\r\nmode %d: %dx%d format %x%s\r\n", bestModeNum, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, bestModeNum == GOPNativeMode ? L"(current)" : L"");
+                        break;
                     }
-                    uefi_call_wrapper(GOP->QueryMode, 4, GOP, bestModeNum, &GOPInfoSize, &GOPInfo);
-                    Print(L"Selected:\r\nmode %d: %dx%d format %x%s\r\n", bestModeNum, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, bestModeNum == GOPNativeMode ? L"(current)" : L"");
-                    break;
-                }
-                case 0x10: {
-                    //set GOP
-                    status = uefi_call_wrapper(ST->BootServices->LocateProtocol, 3, &GOPGuid, NULL, (void**) &GOP);
-                    if(EFI_ERROR(status)){
-                        Print(L"No GOP\r\n");
-                        while(1);
-                    }
-                    status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP->Mode==NULL?0:GOP->Mode->Mode, &GOPInfoSize, &GOPInfo);
-                    //get the current video mode
-                    if(status == EFI_NOT_STARTED){
-                        status = uefi_call_wrapper(GOP->SetMode, 2, GOP, 0);
-                    }
-                    if(EFI_ERROR(status)){
-                        Print(L"Unable to get GOP native mode\r\n");
-                    }
-                    else{
-                        GOPNativeMode = GOP->Mode->Mode;
-                        GOPNumModes = GOP->Mode->MaxMode;
-                    }
-                    Print(L"GOP native mode: %d\r\nGOP number of modes: %d\r\n", GOPNativeMode, GOPNumModes);
-                    //query GOP modes
-                    for(UINTN i = 0;i<GOPNumModes;i++){
-                        status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, i, &GOPInfoSize, &GOPInfo);
+                    case 3: {
+                        //manual select GOP
+                        //set GOP
+                        status = uefi_call_wrapper(ST->BootServices->LocateProtocol, 3, &GOPGuid, NULL, (void**) &GOP);
                         if(EFI_ERROR(status)){
-                            Print(L"Get mode %d failed!", i);
+                            Print(L"No GOP\r\n");
+                            while(1);
+                        }
+                        status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP->Mode==NULL?0:GOP->Mode->Mode, &GOPInfoSize, &GOPInfo);
+                        //get the current video mode
+                        if(status == EFI_NOT_STARTED){
+                            status = uefi_call_wrapper(GOP->SetMode, 2, GOP, 0);
+                        }
+                        if(EFI_ERROR(status)){
+                            Print(L"Unable to get GOP native mode\r\n");
                         }
                         else{
-                            Print(L"mode %d: %dx%d format %x%s  ", i, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, i == GOPNativeMode ? L"(current)" : L"");                  
+                            GOPNativeMode = GOP->Mode->Mode;
+                            GOPNumModes = GOP->Mode->MaxMode;
                         }
-                        if(GOPInfo->PixelFormat != 1){
-                            Print(L"cannot be used\r\n");
-                            continue;
+                        Print(L"GOP native mode: %d\r\nGOP number of modes: %d\r\n", GOPNativeMode, GOPNumModes);
+                        //query GOP modes
+                        for(UINTN i = 0;i<GOPNumModes;i++){
+                            status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, i, &GOPInfoSize, &GOPInfo);
+                            if(EFI_ERROR(status)){
+                                Print(L"Get mode %d failed!", i);
+                            }
+                            else{
+                                Print(L"mode %d: %dx%d format %x%s  ", i, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, i == GOPNativeMode ? L"(current)" : L"");                  
+                            }
+                            if(GOPInfo->PixelFormat != 1){
+                                Print(L"cannot be used\r\n");
+                                continue;
+                            }
+                            else{
+                                Print(L"  press y to select:");
+                            }
+                            //prompt
+                            while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke, 2, ST->ConIn, &key) != EFI_SUCCESS);
+                            if(key.UnicodeChar == L'y'){
+                                UINTN pixelCount = GOPInfo->HorizontalResolution * GOPInfo->VerticalResolution;
+                                bestModePixelCount = pixelCount;
+                                bestModeNum = i;
+                                bestModeWidth = GOPInfo->HorizontalResolution;
+                                bestModeHeight = GOPInfo->VerticalResolution;
+                                uefi_call_wrapper(GOP->QueryMode, 4, GOP, bestModeNum, &GOPInfoSize, &GOPInfo);
+                                Print(L"\r\nSelected:\r\nmode %d: %dx%d format %x%s\r\n", bestModeNum, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, bestModeNum == GOPNativeMode ? L"(current)" : L"");
+                                break;
+                            }
+                            else{
+                                Print(L"Nuh uh\r\n");
+                            }
                         }
-                        else{
-                            Print(L"y to select this mode:");
-                        }
-                        //prompt
-                        while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke, 2, ST->ConIn, &key) != EFI_SUCCESS);
-                        if(key.UnicodeChar == L'y'){
-                            UINTN pixelCount = GOPInfo->HorizontalResolution * GOPInfo->VerticalResolution;
-                            bestModePixelCount = pixelCount;
-                            bestModeNum = i;
-                            bestModeWidth = GOPInfo->HorizontalResolution;
-                            bestModeHeight = GOPInfo->VerticalResolution;
-                            uefi_call_wrapper(GOP->QueryMode, 4, GOP, bestModeNum, &GOPInfoSize, &GOPInfo);
-                            Print(L"\r\nSelected:\r\nmode %d: %dx%d format %x%s\r\n", bestModeNum, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, bestModeNum == GOPNativeMode ? L"(current)" : L"");
-                            break;
-                        }
-                        else{
-                            Print(L"Nuh uh\r\n");
-                        }
+                        break;
                     }
-                    break;
-                }
-                case 0x11: {
-                    //GOP info
-                    uefi_call_wrapper(GOP->QueryMode, 4, GOP, bestModeNum, &GOPInfoSize, &GOPInfo);
-                    //Set GOP mode
-                    status = uefi_call_wrapper(GOP->SetMode, 2, GOP, bestModeNum);
-                    if(EFI_ERROR(status)){
-                        Print(L"Unable to set GOP mode %d\r\n", bestModeNum);
-                        while(1);
-                    }
+                    case 4: {
+                        //Boot Nuck OS
+                        //GOP info
+                        uefi_call_wrapper(GOP->QueryMode, 4, GOP, bestModeNum, &GOPInfoSize, &GOPInfo);
+                        //Set GOP mode
+                        status = uefi_call_wrapper(GOP->SetMode, 2, GOP, bestModeNum);
+                        if(EFI_ERROR(status)){
+                            Print(L"Unable to set GOP mode %d\r\n", bestModeNum);
+                            while(1);
+                        }
 
-                    //allocate memory for backbuffer
-                    status = uefi_call_wrapper(ST->BootServices->AllocatePool, 3, EfiLoaderData, GOP->Mode->FrameBufferSize, &fb2_addr);
-                    if(EFI_ERROR(status)){
-                        Print(L"Can't allocate pool of %d bytes for video backbuffer\r\n", GOP->Mode->FrameBufferSize);
-                        while(1);
-                    }
-                    //allocate memory for kernel stack(2 MiB)
-                    status = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, kernel_stack_size, &kernel_stack);
-                    if(EFI_ERROR(status)){
-                        Print(L"Can't allocate %d pages for kernel stack\r\n", kernel_stack_size);
-                        while(1);
-                    }
-                    //allocate memory for kernel heap map(1 page = 4096 bytes = maps to 32768 pages)
-                    status = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, 1, &kernel_heap_map);
-                    if(EFI_ERROR(status)){
-                        Print(L"Can't allocate %d pages for kernel heap map\r\n", 1);
-                        while(1);
-                    }
-                    //allocate memory for kernel heap(32768 pages = 1342117728 bytes = 128 MiB heap)
-                    status = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, 32768, &kernel_heap);
-                    if(EFI_ERROR(status)){
-                        Print(L"Can't allocate %d pages for kernel heap\r\n", 32768);
-                        while(1);
-                    }
+                        //allocate memory for backbuffer
+                        status = uefi_call_wrapper(ST->BootServices->AllocatePool, 3, EfiLoaderData, GOP->Mode->FrameBufferSize, &fb2_addr);
+                        if(EFI_ERROR(status)){
+                            Print(L"Can't allocate pool of %d bytes for video backbuffer\r\n", GOP->Mode->FrameBufferSize);
+                            while(1);
+                        }
+                        //allocate memory for kernel stack(2 MiB)
+                        status = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, kernel_stack_size, &kernel_stack);
+                        if(EFI_ERROR(status)){
+                            Print(L"Can't allocate %d pages for kernel stack\r\n", kernel_stack_size);
+                            while(1);
+                        }
+                        //allocate memory for kernel heap map(1 page = 4096 bytes = maps to 32768 pages)
+                        status = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, 1, &kernel_heap_map);
+                        if(EFI_ERROR(status)){
+                            Print(L"Can't allocate %d pages for kernel heap map\r\n", 1);
+                            while(1);
+                        }
+                        //allocate memory for kernel heap(32768 pages = 1342117728 bytes = 128 MiB heap)
+                        status = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, 32768, &kernel_heap);
+                        if(EFI_ERROR(status)){
+                            Print(L"Can't allocate %d pages for kernel heap\r\n", 32768);
+                            while(1);
+                        }
 
-                    //get memory map
-                    status = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, &MemoryMapSize, MemoryMap, &MapKey, &DescriptorSize, &DescriptorVersion);
-                    uefi_call_wrapper(ST->BootServices->ExitBootServices, 2, ImageHandle, MapKey);
-                    goto exit_boot_services;
-                    break;
+                        //get memory map
+                        status = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, &MemoryMapSize, MemoryMap, &MapKey, &DescriptorSize, &DescriptorVersion);
+                        uefi_call_wrapper(ST->BootServices->ExitBootServices, 2, ImageHandle, MapKey);
+                        goto exit_boot_services;
+                        break;
+                    }
+                    case 5: {
+                       //view mem map
+                        getMemoryMap(ST, &MemoryMapSize, &MemoryMap, &MapKey, &DescriptorSize, &DescriptorVersion);
+                        printMemoryMap(ST, MemoryMapSize, MemoryMap, MapKey, DescriptorSize, DescriptorVersion);
+                        break;
+                    }
+                    case 6: {
+                        //view config tables
+
+                        break;
+                    }
+                    case 7: {
+                        //shutdown
+                        uefi_call_wrapper(ST->RuntimeServices->ResetSystem, 4, EfiResetShutdown, EFI_SUCCESS, 0, NULL);
+                        break;
+                    }
                 }
-                case 0x12: {
-                    goto bootloader_start;
-                }
+
+
+
             }
         }
     }
@@ -325,24 +376,22 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     return EFI_SUCCESS;
 }
 
+void refreshEntries(EFI_SYSTEM_TABLE* ST, wchar_t* menuEntries[], UINTN menuEntriesCount, UINTN selectedEntryIndex, UINTN startColumn, UINTN startRow){
+    //sets cursor position
+    uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, startColumn, startRow);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    //sets font color
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_MAGENTA));
+    
+    for(UINTN entryIndex = 0;entryIndex < menuEntriesCount;entryIndex++){ //print all menu entries
+        if(entryIndex == selectedEntryIndex){
+            uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_MAGENTA, EFI_CYAN));
+        }
+        Print(menuEntries[entryIndex]);
+        uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_MAGENTA));
+        Print(L"\r\n");
+    }
+}
 
 
 
@@ -542,36 +591,47 @@ void getMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN* MemoryMapSize, EFI_MEMORY_DESCRIP
 }
 
 void printLogo(EFI_SYSTEM_TABLE* ST){
-    CHAR16* oslogo = L"                                   _   _    ___\r\n                                  | | | |  / _ \\\r\n    _   _                  _      | |_| | |  __/\r\n   | \\ | |  _   _    ___  | | __   \\__,_|  \\___|   / _ \\  / ___| \r\n   |  \\| | | | | |  / __| | |/ /      __   _      | | | | \\___ \\ \r\n   | |\\  | | |_| | | (__  |   <      / _| (_)     | |_| |  ___) |\r\n   |_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |      \\___/  |____/ \r\n                                    |  _| | |                    \r\n                                    |_|   |_|                    \r\n               \"operating system of the future\" (TM)\r\n";
-    CHAR16* oah = L"                                   _   _    ___\r\n                                  | | | |  / _ \\\r\n    _   _                  _      | |_| | |  __/   ____              _\r\n   | \\ | |  _   _    ___  | | __   \\__,_|  \\___|  | __ )  ___   ___ | |\r\n   |  \\| | | | | |  / __| | |/ /      __   _      |  _ \\ / _ \\ / _ \\| __| \r\n   | |\\  | | |_| | | (__  |   <      / _| (_)     | |_) | (_) | (_) | |_\r\n   |_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |     |____/ \\___/ \\___/ \\__|\r\n                                    |  _| | |\r\n                                    |_|   |_|\r\n               \"operating system of the future\" (TM)\r\n";
+    //CHAR16* oslogo = L"                                   _   _    ___\r\n                                  | | | |  / _ \\\r\n    _   _                  _      | |_| | |  __/\r\n   | \\ | |  _   _    ___  | | __   \\__,_|  \\___|   / _ \\  / ___| \r\n   |  \\| | | | | |  / __| | |/ /      __   _      | | | | \\___ \\ \r\n   | |\\  | | |_| | | (__  |   <      / _| (_)     | |_| |  ___) |\r\n   |_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |      \\___/  |____/ \r\n                                    |  _| | |                    \r\n                                    |_|   |_|                    \r\n               \"operating system of the future\" (TM)\r\n";
+    CHAR16* oah = L"                                   _   _    ___\r\n                                  | | | |  / _ \\\r\n    _   _                  _      | |_| | |  __/   ____              _\r\n   | \\ | |  _   _    ___  | | __   \\__,_|  \\___|  | __ )  ___   ___ | |\r\n   |  \\| | | | | |  / __| | |/ /      __   _      |  _ \\ / _ \\ / _ \\| __| \r\n   | |\\  | | |_| | | (__  |   <      / _| (_)     | |_) | (_) | (_) | |_\r\n   |_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |     |____/ \\___/ \\___/ \\__|\r\n                                    |  _| | |\r\n                                    |_|   |_|\r\n                   \"operating system of the future\" (TM)\r\n";
     uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, oah);
 }
 
 void printInfo(EFI_SYSTEM_TABLE* ST){
     Print(L"Firmware Vendor: %s\r\n", ST->FirmwareVendor);
     Print(L"System UEFI firmware revision: %d.%d\r\n", (ST->FirmwareRevision >> 16) && 0xFFFF, ST->FirmwareRevision & 0xFFFF);
+    Print(L"Number of configuration table entries: %d\r\n", ST->NumberOfTableEntries);
 
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_BLACK, EFI_BLACK));
+    Print(L"0");
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_BLUE, EFI_BLUE));
+    Print(L"0");
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_GREEN, EFI_GREEN));
+    Print(L"0");
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_CYAN, EFI_CYAN));
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"\r\n                 ");
-
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTCYAN, EFI_RED));
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"M");
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTMAGENTA, EFI_YELLOW));
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"E");
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTRED, EFI_GREEN));
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"S");
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTRED, EFI_CYAN));
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"M");
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_BLUE));
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"E");
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_MAGENTA));
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"R");
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BROWN));
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"I");
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTBLUE, EFI_LIGHTGRAY));
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"Z");
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTCYAN, EFI_DARKGRAY));
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"E");
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLACK));
-    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"!\r\n");
+    Print(L"0");
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_RED, EFI_RED));
+    Print(L"0");
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_MAGENTA, EFI_MAGENTA));
+    Print(L"0");
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_BROWN, EFI_BROWN));
+    Print(L"0");
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_LIGHTGRAY));
+    Print(L"0");
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_DARKGRAY, EFI_DARKGRAY));
+    Print(L"0");
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTBLUE, EFI_LIGHTBLUE));
+    Print(L"0");
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_LIGHTGREEN));
+    Print(L"0");
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTCYAN, EFI_LIGHTCYAN));
+    Print(L"0");
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTRED, EFI_LIGHTRED));
+    Print(L"0");
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTMAGENTA, EFI_LIGHTMAGENTA));
+    Print(L"0");
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_YELLOW));
+    Print(L"0");
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_WHITE));
+    Print(L"0");
+    Print(L"\r\n");
 }

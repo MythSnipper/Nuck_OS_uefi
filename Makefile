@@ -100,7 +100,7 @@ build:
 copy-usbroot:
 	cp build/nuckboot.efi usbroot/EFI/BOOT/BOOTX64.EFI
 	cp build/kernel-full.bin usbroot/kernel.bin
-	cp data/*.nvideo usbroot/
+	cp data/out/*.nvideo usbroot/
 
 #reconstruct usb partitions and format
 disk:
@@ -203,11 +203,9 @@ convert-video-yt:
 
 #convert jpg images to bmp frames
 convert-bad-apple-frames:
-	rm data/bad-apple-source/bmpframes/*
-	for file in data/bad-apple-source/frames-bad-apple/*.jpg; do \
-		filename=$$(basename $$file .jpg); \
-		ffmpeg -loglevel panic -i $$file data/bad-apple-source/bmpframes/$$filename.bmp; \
-	done
+	ls data/source/bad-apple/*.jpg | parallel --no-notice -j $$(nproc) ' \
+		filename=$$(basename {} .jpg); \
+		ffmpeg -loglevel panic -i {} data/pre-convert/bad-apple/$$filename.bmp'
 
 #convert bmp frames to black and white bmp video
 convert-bad-apple:
