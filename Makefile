@@ -2,7 +2,7 @@
 
 DEVICE ?= /dev/null
 EFI_PART = $(DEVICE)1
-EFI_PART_SIZE = 600M#MiB
+EFI_PART_SIZE = 2G#MiB
 MAIN_PART = $(DEVICE)2
 
 #iso image building shenanigans

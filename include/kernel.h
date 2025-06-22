@@ -91,6 +91,10 @@ typedef struct{
 typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;
 
 
+
+//PS2 keyboard
+uint8_t PS2_keyboard_poll();
+
 //PIC functions
 void PIC_disable();
 
@@ -115,6 +119,7 @@ void heap_free(KERNEL_HEAP* heap, void* addr, uint64_t pages);
 void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut);
 
 
+
 //graphical functions
 void NVIDEOParseHeader(KERNEL_NVIDEO* video, uint8_t* addr);
 void GOPPlayVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bool loop, uint8_t skips);
@@ -128,6 +133,8 @@ void printString(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t* string);
 void printChar(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t ascii_char);
 void GOPDrawRect(EFI_GOP* GOP, uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color, uint8_t fill);
 void GOPPutPixel(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t color);
+
+
 
 void* memcpy(void* source, void* dest, uint64_t size);
 static inline uint32_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);

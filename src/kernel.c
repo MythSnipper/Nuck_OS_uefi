@@ -327,6 +327,9 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         : [idt] "r"(&IDTPtr)
         : "memory"
     );
+    //disable PIC
+    PIC_disable();
+
 
     uint8_t versionMajor = 1;
     uint8_t versionMinor = 2;
@@ -1987,8 +1990,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     heap_free(ctx->heap, testPtr, 1);
 
 
-
-
     while(true){
         title = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
         ConOut = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
@@ -2009,8 +2010,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         //logo
         GOPDrawImage(ctx->GOP, ctx->GOP->Info->HorizontalResolution - oslogo.width - 10, ctx->GOP->Info->VerticalResolution - oslogo.height - 10, &oslogo);
         
-
-
         printf(ctx->GOP, &ConOut, "(operating system of the future)\r\n");
         printf(ctx->GOP, &ConOut, "Display pixel format: %d\r\n", ctx->GOP->Info->PixelFormat);
         printf(ctx->GOP, &ConOut, "Code segment: %x\r\nData segment: %x\r\nCPU Vendor: %s\r\n", CODE_SEG, DATA_SEG, CPUVendor);
@@ -2045,7 +2044,19 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         ConOut.backColor = hex(0x00807F);
         printf(ctx->GOP, &ConOut, "\r\n\n                            ");
         ConOut.backColor = hex(0x000000);
-        printf(ctx->GOP, &ConOut, "(Logo designed by Serafim Kulukundis)\r\n");
+        printf(ctx->GOP, &ConOut, "(Logo designed by Serafim)\r\n");
+
+        uint8_t scancode = PS2_keyboard_poll();
+        printf(ctx->GOP, &ConOut, "keyboard scancode: %u                     \r\n", scancode);
+        if(scancode & 0x80){
+            printf(ctx->GOP, &ConOut, "BREAK                              \r\n");
+        }
+        else{
+            printf(ctx->GOP, &ConOut, "MAKE                             \r\n");
+        }
+
+
+
         //copy framebuffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
     }
@@ -2066,9 +2077,13 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
 
 
-
-
-
+//PS/2 keyboard
+#define PS2_DATA 0x60
+#define PS2_STATUS 0x64
+uint8_t PS2_keyboard_poll(){
+    while ((inb(PS2_STATUS) & 0x01) == 0); // Wait for data
+    return inb(PS2_DATA); // Read scan code
+}
 
 
 //PIC functions
@@ -2076,8 +2091,6 @@ void PIC_disable(){
     outb(0x21, 0xff); //mask master PIC
     outb(0xA1, 0xff); //mask slave PIC
 }
-
-
 
 //dynamic memory allocation functions
 void subpage_alloc_init(KERNEL_SUBPAGE_ALLOCATOR* alloc){

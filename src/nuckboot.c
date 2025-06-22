@@ -319,7 +319,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     }
                     case 6: {
                         //view config tables
-
+                        
                         break;
                     }
                     case 7: {
