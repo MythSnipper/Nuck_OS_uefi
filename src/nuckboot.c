@@ -10,7 +10,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     CHAR16 buff[2] = L"\0\0";
 
     InitializeLib(ImageHandle, ST); //initialize runtime pointers
-
+    really_early_start:
     //disable watchdog timer
     uefi_call_wrapper(ST->BootServices->SetWatchdogTimer, 4, 0, 0x10000, 0, NULL);
 
@@ -84,8 +84,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     UINTN menuEntriesCount = 9;
     UINTN selectedEntryIndex = 0;
 
-    bootloader_start:
-    selectedEntryIndex = 0;
+    
     //clear console output, sets background color, cursor goes to 0, 0
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_MAGENTA, EFI_MAGENTA));
     uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
@@ -98,8 +97,22 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
 
     //sets font color
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_MAGENTA));
-    //Print(L"Arrow keys/WASD to move, Enter to select, Esc to reset bootloader\r\n");
 
+    Print(L"Press any key multiple times to continue...");
+    for(uint8_t i = 0;i < 3;i++){
+        while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
+    }
+    bootloader_start:
+
+    selectedEntryIndex = 0;
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_MAGENTA, EFI_MAGENTA));
+    uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
+
+    //sets font color
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_MAGENTA));
+
+    Print(L"---Boot Menu---\r\n");
+    Print(L"   Arrow keys/WASD to move, Enter to select\r\n   Esc to reset bootloader, F12 to RESET bootloader\r\n\n");
     //save current cursor position because it's where the boot menu text starts
     startColumn = ST->ConOut->Mode->CursorColumn;
     startRow = ST->ConOut->Mode->CursorRow;
@@ -119,6 +132,10 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                 uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, buff);
             }
             */
+            //If it's F12 then really early start
+            if(key.ScanCode == SCAN_F12){
+                goto really_early_start;
+            }
             //If it's escape then reset bootloader
             if(key.ScanCode == SCAN_ESC){
                 goto bootloader_start;
@@ -326,9 +343,19 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     case 7: {
                         //EFI shell
                         Print(L"EFI SHELL\r\n");
-                        EFI_PHYSICAL_ADDRESS shell_addr = loadFile(ST, root, L"EFI\\BOOT\\SHELLX64.EFI");
+                        root = openVolume(ST, ImageHandle); //opens root of filesystem of boot device
+
+                        wchar_t* filename = L"EFI\\BOOT\\SHELLX64.EFI";
+                        EFI_PHYSICAL_ADDRESS shell_addr = loadFile(ST, root, filename);
+                        UINT64 size;
+                        {
+                            EFI_FILE_PROTOCOL* file;
+                            file = openFile(root, filename);
+                            size = getFileSize(ST, file, filename);
+                        }
+
                         EFI_HANDLE shell_image = NULL;
-                        status = uefi_call_wrapper(ST->BootServices->LoadImage, 6, FALSE, ImageHandle, NULL, (VOID*)shell_addr, 0, &shell_image);
+                        status = uefi_call_wrapper(ST->BootServices->LoadImage, 6, FALSE, ImageHandle, NULL, (VOID*)shell_addr, size, &shell_image);
                         if(EFI_ERROR(status)){
                             Print(L"Failed to Load EFI Shell image\r\n");
                             while(1);
