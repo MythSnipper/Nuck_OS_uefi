@@ -99,8 +99,10 @@ build:
 #copy code and data to usbroot
 copy-usbroot:
 	cp build/nuckboot.efi usbroot/EFI/BOOT/BOOTX64.EFI
+	cp gnu-efi/Shell_Full.efi usbroot/EFI/BOOT/SHELLX64.EFI
 	cp build/kernel-full.bin usbroot/kernel.bin
 	cp data/out/*.nvideo usbroot/
+
 
 #reconstruct usb partitions and format
 disk:

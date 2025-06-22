@@ -69,7 +69,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
 
     //DISPLAY MENU data
     UINTN startColumn; //starting column and row
-    UINTN startRow; 
+    UINTN startRow;
     wchar_t* menuEntries[] = {
         L"Automatic boot",
         L"Load Nuck OS kernel and data",
@@ -78,9 +78,10 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         L"Boot Nuck OS",
         L"View memory map",
         L"View configuration tables",
+        L"EFI Shell",
         L"Shutdown",
     };
-    UINTN menuEntriesCount = 8;
+    UINTN menuEntriesCount = 9;
     UINTN selectedEntryIndex = 0;
 
     bootloader_start:
@@ -323,6 +324,23 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                         break;
                     }
                     case 7: {
+                        //EFI shell
+                        Print(L"EFI SHELL\r\n");
+                        EFI_PHYSICAL_ADDRESS shell_addr = loadFile(ST, root, L"EFI\\BOOT\\SHELLX64.EFI");
+                        EFI_HANDLE shell_image = NULL;
+                        status = uefi_call_wrapper(ST->BootServices->LoadImage, 6, FALSE, ImageHandle, NULL, (VOID*)shell_addr, 0, &shell_image);
+                        if(EFI_ERROR(status)){
+                            Print(L"Failed to Load EFI Shell image\r\n");
+                            while(1);
+                        }
+                        status = uefi_call_wrapper(ST->BootServices->StartImage, 3, shell_image, NULL, NULL);
+                        if(EFI_ERROR(status)){
+                            Print(L"Failed to Start EFI Shell image\r\n");
+                            while(1);
+                        }
+                        break;
+                    }
+                    case 8: {
                         //shutdown
                         uefi_call_wrapper(ST->RuntimeServices->ResetSystem, 4, EfiResetShutdown, EFI_SUCCESS, 0, NULL);
                         break;
