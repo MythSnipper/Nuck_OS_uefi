@@ -337,7 +337,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     }
                     case 6: {
                         //view config tables
-                        
+                        printConfigurationTables(ST);
                         break;
                     }
                     case 7: {
@@ -438,8 +438,6 @@ void refreshEntries(EFI_SYSTEM_TABLE* ST, wchar_t* menuEntries[], UINTN menuEntr
     }
 }
 
-
-
 EFI_PHYSICAL_ADDRESS loadFile(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename){
     EFI_FILE_PROTOCOL* file;
     UINT64 size;
@@ -511,6 +509,52 @@ EFI_FILE_PROTOCOL* openVolume(EFI_SYSTEM_TABLE* ST, EFI_HANDLE IH){
     //open root of the filesystem
     status = uefi_call_wrapper(fsInterface->OpenVolume, 2, fsInterface, &volume);
     return volume;
+}
+
+void printConfigurationTables(EFI_SYSTEM_TABLE* ST){
+
+    EFI_GUID GUIDTableKeys[] = {
+        {0x8868e871,0xe4f1,0x11d3,{0xbc,0x22,0x00,0x80,0xc7,0x3c,0x88,0x81}},
+        {0xeb9d2d30,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
+        {0xeb9d2d32,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
+        {0xeb9d2d31,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
+        {0xf2fd1544,0x9794,0x4a2c,{0x99,0x2e,0xe5,0xbb,0xcf,0x20,0xe3,0x94}},
+        {0xeb9d2d2f,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
+        {0x87367f87,0x1119,0x41ce,{0xaa,0xec,0x8b,0xe0,0x11,0x1f,0x55,0x8a}},
+        {0x35e7a725,0x8dd2,0x4cac,{0x80,0x11,0x33,0xcd,0xa8,0x10,0x90,0x56}},
+        {0xdbc461c3,0xb3de,0x422a,{0xb9,0xb4,0x98,0x86,0xfd,0x49,0xa1,0xe5}},
+    };
+    wchar_t* GUIDTableValues[] = {
+        L"ACPI 2.0 TABLE\r\n",
+        L"ACPI TABLE\r\n",
+        L"SAL SYSTEM TABLE\r\n",
+        L"SMBIOS TABLE\r\n",
+        L"SMBIOS3 TABLE\r\n",
+        L"MPS TABLE\r\n",
+        L"EFI JSON CONFIG DATA TABLE\r\n",
+        L"EFI JSON CAPSULE DATA TABLE\r\n",
+        L"EFI JSON CAPSULE RESULT TABLE\r\n"
+    };
+    EFI_CONFIGURATION_TABLE table;
+
+
+    Print(L"Number of configuration table entries: %d\r\n", ST->NumberOfTableEntries);
+    while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, NULL) != EFI_SUCCESS);
+
+    for(UINTN entry = 0;entry < ST->NumberOfTableEntries;entry++){
+        table = ST->ConfigurationTable[entry];
+        Print(L"Table #%d:", entry+1);
+        for(UINTN guidIndex = 0;guidIndex < (sizeof(GUIDTableKeys)/sizeof(GUIDTableKeys[0]));guidIndex++){
+            if(CompareGuid(&table.VendorGuid, &GUIDTableKeys[guidIndex])){
+                Print(GUIDTableValues[guidIndex]);
+                break;
+            }
+        }
+        Print(L"GUID: 0x%lx\r\n", table.VendorGuid);
+        Print(L"ptr: 0x%lx\r\n", table.VendorTable);
+        while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, NULL) != EFI_SUCCESS);
+    }
+    Print(L"----------END----------\r\n");
 }
 
 void printMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN MemoryMapSize, EFI_MEMORY_DESCRIPTOR* MemoryMap, UINTN MapKey, UINTN DescriptorSize, UINT32 DescriptorVersion){
@@ -644,7 +688,6 @@ void printLogo(EFI_SYSTEM_TABLE* ST){
 void printInfo(EFI_SYSTEM_TABLE* ST){
     Print(L"Firmware Vendor: %s\r\n", ST->FirmwareVendor);
     Print(L"System UEFI firmware revision: %d.%d\r\n", (ST->FirmwareRevision >> 16) && 0xFFFF, ST->FirmwareRevision & 0xFFFF);
-    Print(L"Number of configuration table entries: %d\r\n", ST->NumberOfTableEntries);
 
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_BLACK, EFI_BLACK));
     Print(L"0");
@@ -679,4 +722,8 @@ void printInfo(EFI_SYSTEM_TABLE* ST){
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_WHITE));
     Print(L"0");
     Print(L"\r\n");
+}
+
+void cmpGUID(EFI_GUID guid1, EFI_GUID guid2){
+    return 0;
 }

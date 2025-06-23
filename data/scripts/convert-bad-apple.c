@@ -1,12 +1,9 @@
 #include "convert-bad-apple.h"
 
 
-
-
-
 // Fixed paths
-static const char *REF_PATH   = "data/bad-apple-source/frames-bad-apple/out0001.jpg";
-static const char *FRAME_DIR  = "data/frames";
+static const char *REF_PATH   = "data/source/bad-apple/out0001.jpg";
+static const char *FRAME_DIR  = "data/pre-convert/bad-apple";
 static const char *OUTPUT_PATH= "data/video.nvideo";
 
 // Compare function for qsort (lexicographical)

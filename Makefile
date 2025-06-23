@@ -211,14 +211,12 @@ convert-bad-apple-frames:
 
 #convert bmp frames to black and white bmp video
 convert-bad-apple:
-	rm -rf data/frames/*
-	cp -r data/bad-apple-source/bmpframes/* data/frames/
-	./scripts/convert-bad-apple
+	./data/scripts/convert-bad-apple
 
 
 #opt: ffmpeg -i logo.jpg -vf scale=100:100 logo.bmp
 convert-oslogo:
-	python scripts/convert-logo.py
+	python data/scripts/convert-logo.py
 
 
 

@@ -4,7 +4,7 @@ import struct
 # Configuration
 WIDTH = 100
 HEIGHT = 100
-INPUT_IMAGE = "data/logo/logo.bmp"
+INPUT_IMAGE = "data/pre-convert/logo.bmp"
 OUTPUT = "data/logo.nvideo"
 
 with open(OUTPUT, "wb") as out:
