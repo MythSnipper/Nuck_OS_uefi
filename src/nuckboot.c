@@ -86,17 +86,17 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
 
     
     //clear console output, sets background color, cursor goes to 0, 0
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_MAGENTA, EFI_MAGENTA));
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, BACKGROUND_COLOR);
     uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
 
     //sets font color
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_MAGENTA));
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
 
     printLogo(ST);
     printInfo(ST);
 
     //sets font color
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_MAGENTA));
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
 
     Print(L"Press any key multiple times to continue...");
     for(uint8_t i = 0;i < 3;i++){
@@ -105,11 +105,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     bootloader_start:
 
     selectedEntryIndex = 0;
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_MAGENTA, EFI_MAGENTA));
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, BACKGROUND_COLOR);
     uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
 
     //sets font color
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_MAGENTA));
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
 
     Print(L"---Boot Menu---\r\n");
     Print(L"   Arrow keys/WASD to move, Enter to select\r\n   Esc to reset bootloader, F12 to RESET bootloader\r\n\n");
@@ -426,14 +426,14 @@ void refreshEntries(EFI_SYSTEM_TABLE* ST, wchar_t* menuEntries[], UINTN menuEntr
     uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, startColumn, startRow);
 
     //sets font color
-    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_MAGENTA));
+    uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
     
     for(UINTN entryIndex = 0;entryIndex < menuEntriesCount;entryIndex++){ //print all menu entries
         if(entryIndex == selectedEntryIndex){
-            uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_MAGENTA, EFI_CYAN));
+            uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR_SELECTED);
         }
         Print(menuEntries[entryIndex]);
-        uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_MAGENTA));
+        uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
         Print(L"\r\n");
     }
 }
@@ -525,18 +525,17 @@ void printConfigurationTables(EFI_SYSTEM_TABLE* ST){
         {0xdbc461c3,0xb3de,0x422a,{0xb9,0xb4,0x98,0x86,0xfd,0x49,0xa1,0xe5}},
     };
     wchar_t* GUIDTableValues[] = {
-        L"ACPI 2.0 TABLE\r\n",
-        L"ACPI TABLE\r\n",
-        L"SAL SYSTEM TABLE\r\n",
-        L"SMBIOS TABLE\r\n",
-        L"SMBIOS3 TABLE\r\n",
-        L"MPS TABLE\r\n",
-        L"EFI JSON CONFIG DATA TABLE\r\n",
-        L"EFI JSON CAPSULE DATA TABLE\r\n",
-        L"EFI JSON CAPSULE RESULT TABLE\r\n"
+        L"ACPI 2.0 TABLE",
+        L"ACPI TABLE",
+        L"SAL SYSTEM TABLE",
+        L"SMBIOS TABLE",
+        L"SMBIOS3 TABLE",
+        L"MPS TABLE",
+        L"EFI JSON CONFIG DATA TABLE",
+        L"EFI JSON CAPSULE DATA TABLE",
+        L"EFI JSON CAPSULE RESULT TABLE"
     };
     EFI_CONFIGURATION_TABLE table;
-
 
     Print(L"Number of configuration table entries: %d\r\n", ST->NumberOfTableEntries);
     while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, NULL) != EFI_SUCCESS);
@@ -544,14 +543,15 @@ void printConfigurationTables(EFI_SYSTEM_TABLE* ST){
     for(UINTN entry = 0;entry < ST->NumberOfTableEntries;entry++){
         table = ST->ConfigurationTable[entry];
         Print(L"Table #%d:", entry+1);
+        printGUID(&table.VendorGuid);
         for(UINTN guidIndex = 0;guidIndex < (sizeof(GUIDTableKeys)/sizeof(GUIDTableKeys[0]));guidIndex++){
-            if(CompareGuid(&table.VendorGuid, &GUIDTableKeys[guidIndex])){
+            if(cmpGUID(&table.VendorGuid, &GUIDTableKeys[guidIndex])){
+                Print(L"  ");
                 Print(GUIDTableValues[guidIndex]);
                 break;
             }
         }
-        Print(L"GUID: 0x%lx\r\n", table.VendorGuid);
-        Print(L"ptr: 0x%lx\r\n", table.VendorTable);
+        Print(L"  ptr: 0x%lx\r\n", table.VendorTable);
         while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, NULL) != EFI_SUCCESS);
     }
     Print(L"----------END----------\r\n");
@@ -724,6 +724,26 @@ void printInfo(EFI_SYSTEM_TABLE* ST){
     Print(L"\r\n");
 }
 
-void cmpGUID(EFI_GUID guid1, EFI_GUID guid2){
-    return 0;
+void printGUID(EFI_GUID* guid){
+    Print(L"GUID: %x-%x-%x-", guid->Data1, guid->Data2, guid->Data3);
+    Print(L"%x-%x-%x-%x-%x-%x-%x-%x",
+        guid->Data4[0],
+        guid->Data4[1],
+        guid->Data4[2],
+        guid->Data4[3],
+        guid->Data4[4],
+        guid->Data4[5],
+        guid->Data4[6],
+        guid->Data4[7]
+    );
+}
+
+uint8_t cmpGUID(EFI_GUID* guid1, EFI_GUID* guid2){
+    if(guid1->Data1 != guid2->Data1)return 0;
+    if(guid1->Data2 != guid2->Data2)return 0;
+    if(guid1->Data3 != guid2->Data3)return 0;
+    for(uint8_t c = 0;c < 8;c++){
+        if(guid1->Data4[c] != guid2->Data4[c])return 0;
+    }
+    return 1;
 }

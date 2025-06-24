@@ -2451,7 +2451,7 @@ void printUint(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint64_t num, uint8_t b
     buff[64] = 0;
     uint8_t index = 64;
 
-    uint8_t* charmap = "0123456789ABCDEF"; //character map
+    uint8_t* charmap = (uint8_t*)"0123456789ABCDEF"; //character map
 
     while(num != 0){
         index--;

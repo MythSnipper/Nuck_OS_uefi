@@ -4,6 +4,22 @@
 #include "../include/nuckdef.h"
 #include <efi.h>
 #include <efilib.h>
+/*
+#define BACKGROUND_COLOR EFI_TEXT_ATTR(EFI_MAGENTA, EFI_MAGENTA)
+#define FONT_COLOR EFI_TEXT_ATTR(EFI_WHITE, EFI_MAGENTA)
+#define FONT_COLOR_SELECTED EFI_TEXT_ATTR(EFI_WHITE, EFI_CYAN)
+*/
+ 
+#define BACKGROUND_COLOR EFI_TEXT_ATTR(EFI_BLACK, EFI_BLACK)
+#define FONT_COLOR EFI_TEXT_ATTR(EFI_GREEN, EFI_BLACK)
+#define FONT_COLOR_SELECTED EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK)
+
+/*
+#define BACKGROUND_COLOR EFI_TEXT_ATTR(EFI_BLACK, EFI_BLACK)
+#define FONT_COLOR EFI_TEXT_ATTR(EFI_YELLOW, EFI_BLACK)
+#define FONT_COLOR_SELECTED EFI_TEXT_ATTR(EFI_LIGHTRED, EFI_BLACK)
+*/
+
 
 typedef struct{
     uint8_t*                           map;
@@ -26,7 +42,6 @@ typedef struct{
     EFI_PHYSICAL_ADDRESS               imageFile;
 } KERNEL_CONTEXT_TABLE;
 
-
 void refreshEntries(EFI_SYSTEM_TABLE* ST, wchar_t* menuEntries[], UINTN menuEntriesCount, UINTN selectedEntryIndex, UINTN startColumn, UINTN startRow);
 EFI_PHYSICAL_ADDRESS loadFile(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename);
 void closeFile(EFI_FILE_PROTOCOL* file);
@@ -38,5 +53,8 @@ void printMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN MemoryMapSize, EFI_MEMORY_DESCRI
 void getMemoryMap(EFI_SYSTEM_TABLE* ST, UINTN* MemoryMapSize, EFI_MEMORY_DESCRIPTOR** MemoryMap, UINTN* MapKey, UINTN* DescriptorSize, UINT32* DescriptorVersion);
 void printLogo(EFI_SYSTEM_TABLE* ST);
 void printInfo(EFI_SYSTEM_TABLE* ST);
+void printGUID(EFI_GUID* guid);
+uint8_t cmpGUID(EFI_GUID* guid1, EFI_GUID* guid2);
+
 
 #endif
