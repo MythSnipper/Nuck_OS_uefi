@@ -2304,7 +2304,7 @@ void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* img){
         }
     }
 }
-void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t* str, ...){
+void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char* str, ...){
     va_list args;
     va_start(args, str);
 
@@ -2460,12 +2460,12 @@ void printUint(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint64_t num, uint8_t b
     }
     printString(GOP, ConOut, &buff[index]);
 }
-void printString(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t* string){
+void printString(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char* string){
     while(*string){ //while it's not null
         printChar(GOP, ConOut, *string++);
     }
 }
-void printChar(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint8_t ascii_char){
+void printChar(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char ascii_char){
     uint32_t maxWidth = GOP->Info->HorizontalResolution / (ConOut->charWidth*ConOut->scaleX);
     uint32_t maxHeight = GOP->Info->VerticalResolution / (ConOut->charHeight*ConOut->scaleY);
     if(ascii_char == 0){ //null character
