@@ -195,13 +195,24 @@ qemu-slow:
 
 
 
+
+
+
 IF ?= /dev/null
 OF ?= /dev/null
+resize ?= 100:100
 
-#convert downloaded youtube video "video.mp4" to bmp images
-convert-video-yt:
-	rm data/frames/*
-	ffmpeg -i data/video.mp4 -vf scale=640:360 -r 2 data/frames/frame_%04d.bmp
+autoconvert:
+	#nuckos logo
+	ffmpeg -i data/source/logo.jpg 
+
+
+convert-jpg:
+	ffmpeg -i $(IF) -vf scale=$(resize) $(OF)
+
+
+
+
 
 #convert jpg images to bmp frames
 convert-bad-apple-frames:

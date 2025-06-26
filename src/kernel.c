@@ -1989,6 +1989,16 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     void* subPtr2 = subpage_alloc(&alloc);
     heap_free(ctx->heap, testPtr, 1);
 
+    
+    //setup input devices
+    uint8_t scancode;
+
+    uint8_t mouseInitError = init_ps2_mouse();
+    int8_t dx;
+    int8_t dy;
+    uint8_t lrm;
+    
+
 
     while(true){
         title = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
@@ -2042,20 +2052,31 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         printf(ctx->GOP, &ConOut, "2nd subpage: %lx\r\n", subPtr2);
         
         ConOut.backColor = hex(0x00807F);
-        printf(ctx->GOP, &ConOut, "\r\n\n                            ");
+        printf(ctx->GOP, &ConOut, "\r\n\n                        ");
         ConOut.backColor = hex(0x000000);
         printf(ctx->GOP, &ConOut, "(Logo designed by Serafim)\r\n");
 
-        uint8_t scancode = PS2_keyboard_poll();
-        printf(ctx->GOP, &ConOut, "keyboard scancode: %u                     \r\n", scancode);
-        if(scancode & 0x80){
-            printf(ctx->GOP, &ConOut, "BREAK                              \r\n");
-        }
-        else{
-            printf(ctx->GOP, &ConOut, "MAKE                             \r\n");
-        }
 
 
+        uint8_t is_mouse = read_PS2_input(&scancode, &dx, &dy, &lrm);
+        printf(ctx->GOP, &ConOut, "is mouse: %u\r\n", is_mouse);
+        if(!is_mouse){ //keyboard
+            printf(ctx->GOP, &ConOut, "keyboard scancode: %u |\r\n", scancode);
+            if(scancode & 0x80){
+                printf(ctx->GOP, &ConOut, "BREAK\r\n");
+            }
+            else{
+                printf(ctx->GOP, &ConOut, "MAKE\r\n");
+            }
+        }
+        else{ //mouse
+            if(mouseInitError){
+                printf(ctx->GOP, &ConOut, "mouse init error\r\n");
+            }
+            else{
+                printf(ctx->GOP, &ConOut, "mouse input: %d, %d, %x\r\n", dx, dy, lrm);
+            }
+        }
 
         //copy framebuffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
@@ -2063,31 +2084,50 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     while(true);
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//PS/2 keyboard
+//PS/2
 #define PS2_DATA 0x60
 #define PS2_STATUS 0x64
-uint8_t PS2_keyboard_poll(){
-    while ((inb(PS2_STATUS) & 0x01) == 0); // Wait for data
-    return inb(PS2_DATA); // Read scan code
+
+uint8_t PS2_mouse_init() {
+    // Enable 2nd PS/2 port (mouse)
+    while (inb(PS2_STATUS) & 0x02);
+    outb(PS2_STATUS, 0xA8);
+
+    // Enable data reporting
+    mouse_write(0xF4);
+    uint8_t ack = mouse_read();
+    if (ack != 0xFA) {
+        return 1;
+    }
+    return 0;
+}
+
+uint8_t PS2_poll(uint8_t* scancode, int8_t* dx, int8_t* dy, uint8_t* lrm){
+    while((inb(PS2_STATUS) & 0x01) == 0);
+    uint8_t status = inb(PS2_STATUS);
+    uint8_t is_mouse = (status & 0x20) ? 1 : 0;
+    if(!is_mouse){ //keyboard
+        *scancode = inb(PS2_DATA);
+    }
+    else{ //mouse
+        uint8_t bytes[3];
+        for(int i = 0; i < 3; i++){
+            while (!(inb(PS2_STATUS) & 0x01));
+            bytes[i] = inb(PS2_DATA);
+        }
+        uint8_t state = bytes[0];
+        *lrm = state & 0b111;
+        uint8_t x = bytes[1];
+        *dx = x - ((state << 4) & 0x100);
+        uint8_t y = bytes[2];
+        *dy = y - ((state << 3) & 0x100);
+    }
+    return is_mouse;
 }
 
 
 //PIC functions
-void PIC_disable(){
+static inline void PIC_disable(){
     outb(0x21, 0xff); //mask master PIC
     outb(0xA1, 0xff); //mask slave PIC
 }
