@@ -3,3 +3,4 @@ build/
 mnt/
 usbroot/
 data/out/
+data/pre-convert/

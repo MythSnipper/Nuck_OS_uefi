@@ -193,42 +193,25 @@ qemu-slow:
 
 
 
-
-
-
-
-
-IF ?= /dev/null
-OF ?= /dev/null
-resize ?= 100:100
-
-autoconvert:
+convert-source:
+	rm -rf data/pre-convert/*
 	#nuckos logo
-	ffmpeg -i data/source/logo.jpg 
+	mkdir -p data/pre-convert/logo
+	ffmpeg -loglevel panic -i data/source/logo.jpg -vf scale=100:100 data/pre-convert/logo/logo.bmp
 
-
-convert-jpg:
-	ffmpeg -i $(IF) -vf scale=$(resize) $(OF)
-
-
-
-
-
-#convert jpg images to bmp frames
-convert-bad-apple-frames:
+	#bad apple 6572 frames
+	mkdir -p data/pre-convert/bad-apple
 	ls data/source/bad-apple/*.jpg | parallel --no-notice -j $$(nproc) ' \
 		filename=$$(basename {} .jpg); \
 		ffmpeg -loglevel panic -i {} data/pre-convert/bad-apple/$$filename.bmp'
 
-#convert bmp frames to black and white bmp video
-convert-bad-apple:
-	./data/scripts/convert-bad-apple
+build-nvideo:
+	rm -rf data/out/*
+	#nuckos logo
+	scripts/convert-nvideo data/pre-convert/logo data/out/logo.nvideo 1
 
-
-#opt: ffmpeg -i logo.jpg -vf scale=100:100 logo.bmp
-convert-oslogo:
-	python data/scripts/convert-logo.py
-
+	#bad apple 6572 frames
+	scripts/convert-nvideo data/pre-convert/bad-apple data/out/video.nvideo 0
 
 
 

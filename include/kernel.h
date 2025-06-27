@@ -117,7 +117,7 @@ void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut);
 
 //graphical functions
 void NVIDEOParseHeader(KERNEL_NVIDEO* video, uint8_t* addr);
-void GOPPlayVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bool loop, uint8_t skips);
+void GOPPlayVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bool loop);
 void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* img);
 void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char* str, ...);
 void printFloat(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec);

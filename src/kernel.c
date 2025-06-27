@@ -2291,7 +2291,7 @@ void NVIDEOParseHeader(KERNEL_NVIDEO* video, uint8_t* addr){
     video->frameCount = *(uint32_t*)(addr+12);
     video->frameCounter = 0;
 }
-void GOPPlayVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bool loop, uint8_t skips){
+void GOPPlayVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bool loop){
     if(video->frameCounter >= video->frameCount){
         return;
     }
@@ -2304,7 +2304,7 @@ void GOPPlayVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bo
             break;
         }
     }
-    (video->frameCounter)+=skips;
+    (video->frameCounter)++;
     if(video->frameCounter >= video->frameCount && loop){
         video->frameCounter = 0;
     }
