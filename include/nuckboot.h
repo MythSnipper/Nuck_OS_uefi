@@ -38,8 +38,9 @@ typedef struct{
     EFI_PHYSICAL_ADDRESS               kernelStack;
     uint64_t                           kernelStackSize;
     KERNEL_HEAP*                       heap;
-    EFI_PHYSICAL_ADDRESS               videoFile;
-    EFI_PHYSICAL_ADDRESS               imageFile;
+    EFI_PHYSICAL_ADDRESS               badApple;
+    EFI_PHYSICAL_ADDRESS               nuckOSLogo;
+    EFI_PHYSICAL_ADDRESS               pointerIcon;
 } KERNEL_CONTEXT_TABLE;
 
 void refreshEntries(EFI_SYSTEM_TABLE* ST, wchar_t* menuEntries[], UINTN menuEntriesCount, UINTN selectedEntryIndex, UINTN startColumn, UINTN startRow);

@@ -195,9 +195,6 @@ qemu-slow:
 
 convert-source:
 	rm -rf data/pre-convert/*
-	#nuckos logo
-	mkdir -p data/pre-convert/logo
-	ffmpeg -loglevel panic -i data/source/logo.jpg -vf scale=100:100 data/pre-convert/logo/logo.bmp
 
 	#bad apple 6572 frames
 	mkdir -p data/pre-convert/bad-apple
@@ -205,19 +202,23 @@ convert-source:
 		filename=$$(basename {} .jpg); \
 		ffmpeg -loglevel panic -i {} data/pre-convert/bad-apple/$$filename.bmp'
 
+	#nuckos logo
+	mkdir -p data/pre-convert/logo
+	ffmpeg -loglevel panic -i data/source/logo.jpg -vf scale=100:100 data/pre-convert/logo/logo.bmp
+
+	#pointer
+	mkdir -p data/pre-convert/pointer
+	cp data/source/pointer.png data/pre-convert/pointer/pointer.png
+
 build-nvideo:
 	rm -rf data/out/*
 	#nuckos logo
-	scripts/convert-nvideo data/pre-convert/logo data/out/logo.nvideo 1
+	scripts/convert-nvideo data/pre-convert/logo data/out/nuckos_logo.nvideo 1 .bmp
 
 	#bad apple 6572 frames
-	scripts/convert-nvideo data/pre-convert/bad-apple data/out/video.nvideo 0
+	scripts/convert-nvideo data/pre-convert/bad-apple data/out/bad_apple.nvideo 0 .bmp
 
-
-
-
-
-
-
+	#pointer
+	scripts/convert-nvideo data/pre-convert/pointer data/out/pointer.nvideo 2 .png
 
 

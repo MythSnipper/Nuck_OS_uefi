@@ -7,7 +7,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     EFI_INPUT_KEY key;
     EFI_STATUS status;
 
-    CHAR16 buff[2] = L"\0\0";
+    wchar_t buff[2] = L"\0\0";
 
     InitializeLib(ImageHandle, ST); //initialize runtime pointers
     really_early_start:
@@ -43,9 +43,10 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     //used to store the volume on the disk
     EFI_FILE_PROTOCOL* root;
 
-    EFI_PHYSICAL_ADDRESS kernel_addr;
-    EFI_PHYSICAL_ADDRESS video_addr;
-    EFI_PHYSICAL_ADDRESS image_addr;
+    EFI_PHYSICAL_ADDRESS kernel;
+    EFI_PHYSICAL_ADDRESS bad_apple;
+    EFI_PHYSICAL_ADDRESS nuckos_logo;
+    EFI_PHYSICAL_ADDRESS pointer_icon;
 
     //GOP variables
     EFI_GUID GOPGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
@@ -58,7 +59,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     UINTN bestModeNum = 0;
     UINTN bestModePixelCount = 0;
     UINTN bestModeWidth = 0;
-    UINTN bestModeHeight = 0;
     
     EFI_PHYSICAL_ADDRESS fb2_addr; //backbuffer
     EFI_PHYSICAL_ADDRESS kernel_stack; //kernel stack(not top, start)
@@ -166,9 +166,10 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                         Print(L"loading kernel and data\r\n");
                         root = openVolume(ST, ImageHandle); //opens root of filesystem of boot device
                         
-                        kernel_addr = loadFile(ST, root, L"kernel.bin");
-                        video_addr = loadFile(ST, root, L"video.nvideo");
-                        image_addr = loadFile(ST, root, L"logo.nvideo");
+                        kernel = loadFile(ST, root, L"kernel.bin");
+                        bad_apple = loadFile(ST, root, L"bad_apple.nvideo");
+                        nuckos_logo = loadFile(ST, root, L"nuckos_logo.nvideo");
+                        pointer_icon = loadFile(ST, root, L"pointer.nvideo");
 
                         Print(L"files loaded successfully\r\n");
                         break;
@@ -207,7 +208,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                         bestModeNum = 0;
                         bestModePixelCount = 0;
                         bestModeWidth = 0;
-                        bestModeHeight = 0;
                         for(UINTN i = 0;i<GOPNumModes;i++){
                             uefi_call_wrapper(GOP->QueryMode, 4, GOP, i, &GOPInfoSize, &GOPInfo);
                             if(GOPInfo->PixelFormat != 1){
@@ -218,13 +218,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                                 bestModePixelCount = pixelCount;
                                 bestModeNum = i;
                                 bestModeWidth = GOPInfo->HorizontalResolution;
-                                bestModeHeight = GOPInfo->VerticalResolution;
                             }
                             else if(pixelCount == bestModePixelCount){
                                 if(bestModeWidth > GOPInfo->HorizontalResolution){
                                     bestModeNum = i;
                                     bestModeWidth = GOPInfo->HorizontalResolution;
-                                    bestModeHeight = GOPInfo->VerticalResolution;
                                 }
                             }
                         }
@@ -276,7 +274,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                                 bestModePixelCount = pixelCount;
                                 bestModeNum = i;
                                 bestModeWidth = GOPInfo->HorizontalResolution;
-                                bestModeHeight = GOPInfo->VerticalResolution;
                                 uefi_call_wrapper(GOP->QueryMode, 4, GOP, bestModeNum, &GOPInfoSize, &GOPInfo);
                                 Print(L"\r\nSelected:\r\nmode %d: %dx%d format %x%s\r\n", bestModeNum, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, bestModeNum == GOPNativeMode ? L"(current)" : L"");
                                 break;
@@ -382,7 +379,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     exit_boot_services:
 
     typedef void (*Kernel_entry)(KERNEL_CONTEXT_TABLE*);
-    Kernel_entry kernel_main = (void*)kernel_addr;
+    Kernel_entry kernel_main = (void*)kernel;
 
     KERNEL_HEAP heap = {
         (uint8_t*)kernel_heap_map,
@@ -400,8 +397,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         kernel_stack,
         kernel_stack_size,
         &heap,
-        video_addr,
-        image_addr
+        bad_apple,
+        nuckos_logo,
+        pointer_icon
     };
 
     //switch to kernel stack and call start of kernel image
@@ -503,11 +501,11 @@ EFI_FILE_PROTOCOL* openVolume(EFI_SYSTEM_TABLE* ST, EFI_HANDLE IH){
     EFI_GUID fsGuid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
 
     //get loaded image info, puts info into loadedImage
-    status = uefi_call_wrapper(ST->BootServices->HandleProtocol, 3, IH, &imgGuid, (void**)&loadedImage);
+    status= uefi_call_wrapper(ST->BootServices->HandleProtocol, 3, IH, &imgGuid, (void**)&loadedImage);
     //get volume handle, gets fs from the disk
-    status = uefi_call_wrapper(ST->BootServices->HandleProtocol, 3, loadedImage->DeviceHandle, &fsGuid, (void*)&fsInterface);
+    status= uefi_call_wrapper(ST->BootServices->HandleProtocol, 3, loadedImage->DeviceHandle, &fsGuid, (void*)&fsInterface);
     //open root of the filesystem
-    status = uefi_call_wrapper(fsInterface->OpenVolume, 2, fsInterface, &volume);
+    status= uefi_call_wrapper(fsInterface->OpenVolume, 2, fsInterface, &volume);
     return volume;
 }
 

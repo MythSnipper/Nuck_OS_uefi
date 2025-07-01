@@ -332,7 +332,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
 
     uint8_t versionMajor = 1;
-    uint8_t versionMinor = 2;
+    uint8_t versionMinor = 3;
     //font
     uint8_t VGAfont[] = {
         //32
@@ -1952,7 +1952,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         0b00000000
     };
 
-    uint8_t* CPUVendor = cpuid_get_vendor();
+    uint8_t CPUVendor[13];
+    cpuid_get_vendor(CPUVendor);
 
     //Display
     //swap the buffers so the GOP framebuffer is actually the backbuffer
@@ -1962,19 +1963,19 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         ctx->GOP->FrameBufferBase = backbuf; //set the GOP address to backbuffer
     }
 
-    bool fill = true;
-    uint32_t screenX = ctx->GOP->Info->HorizontalResolution - 1;
-    uint32_t screenYFraction = ctx->GOP->Info->VerticalResolution / 5;
+    
     KERNEL_TEXT_OUTPUT title = {VGAfont, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
     KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
     KERNEL_TEXT_OUTPUT HeapOut = {VGAfont, 8, 16, 1, 1, 0, 0, 0, 0, hex(0xFF10F0), hex(0x000000), false};
 
     KERNEL_NVIDEO bad_apple;
-    KERNEL_NVIDEO oslogo;
+    KERNEL_NVIDEO nuckos_logo;
+    KERNEL_NVIDEO pointer_icon;
 
     //parse media headers
-    NVIDEOParseHeader(&bad_apple, (uint8_t*) ctx->videoFile);
-    NVIDEOParseHeader(&oslogo, (uint8_t*) ctx->imageFile);
+    NVIDEOParseHeader(&bad_apple, (uint8_t*) ctx->badApple);
+    NVIDEOParseHeader(&nuckos_logo, (uint8_t*) ctx->nuckOSLogo);
+    NVIDEOParseHeader(&pointer_icon, (uint8_t*) ctx->pointerIcon);
 
     //MEM ALLOC STUFFFFFF IDK
     heap_init(ctx->heap);   
@@ -1993,20 +1994,30 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     //setup input devices
     uint8_t scancode;
 
-    uint8_t mouseInitError = init_ps2_mouse();
+    uint8_t mouseInitError = PS2_mouse_init();
+    uint8_t mouseSetSampleError = PS2_mouse_set_sample_rate(100);
     int8_t dx;
     int8_t dy;
     uint8_t lrm;
     
 
+    //pointer position
+    int32_t pointerX = 0;
+    int32_t pointerY = 0;
 
     while(true){
+
+        //display
         title = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
         ConOut = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
         HeapOut =(KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 1, 1, 0, 0, 0, 0, hex(0xFF10F0), hex(0x000000), false};
         //clear screen
         GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
         /*
+
+        bool fill = true;
+        uint32_t screenX = ctx->GOP->Info->HorizontalResolution - 1;
+        uint32_t screenYFraction = ctx->GOP->Info->VerticalResolution / 5;
         GOPDrawRect(ctx->GOP, 0, 0, screenX, screenYFraction - 1, hex(0x55CDFC), fill);
         GOPDrawRect(ctx->GOP, 0, screenYFraction, screenX, 2*screenYFraction - 1, hex(0xF7A8B8), fill);
         GOPDrawRect(ctx->GOP, 0, 2*screenYFraction, screenX, 3*screenYFraction - 1, hex(0xFFFFFF), fill);
@@ -2015,15 +2026,12 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         */
         GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x00807F), true);
 
-        GOPPlayVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - bad_apple.width, 0, &bad_apple, true, 3);
-
-        //logo
-        GOPDrawImage(ctx->GOP, ctx->GOP->Info->HorizontalResolution - oslogo.width - 10, ctx->GOP->Info->VerticalResolution - oslogo.height - 10, &oslogo);
+        GOPPlayVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - bad_apple.width, 0, &bad_apple, true);
         
         printf(ctx->GOP, &ConOut, "(operating system of the future)\r\n");
         printf(ctx->GOP, &ConOut, "Display pixel format: %d\r\n", ctx->GOP->Info->PixelFormat);
-        printf(ctx->GOP, &ConOut, "Code segment: %x\r\nData segment: %x\r\nCPU Vendor: %s\r\n", CODE_SEG, DATA_SEG, CPUVendor);
-        printf(ctx->GOP, &ConOut, "Video resolution: %dx%d\r\nformat %d\r\nframe %d/%d\r\n", bad_apple.width, bad_apple.height, bad_apple.format, bad_apple.frameCounter+1, bad_apple.frameCount);
+        printf(ctx->GOP, &ConOut, "CPU Vendor: %s\r\n", CODE_SEG, DATA_SEG, &CPUVendor);
+        printf(ctx->GOP, &ConOut, "Video resolution: %dx%d / format %d / frame %d/%d\r\n", bad_apple.width, bad_apple.height, bad_apple.format, bad_apple.frameCounter+1, bad_apple.frameCount);
 
         printf(ctx->GOP, &title, "Welcome to \r\n");
         title.frontColor = 0xE50000;title.backColor = 0x000000;
@@ -2044,7 +2052,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
         printf(ctx->GOP, &title, "\r\n Version %u.%u!\r\n", versionMajor, versionMinor);
 
-
         heap_display(ctx->heap, ctx->GOP, &HeapOut);
         printf(ctx->GOP, &ConOut, "\r\nheap page allocator: \r\n%lx, +32768 pages, %ld MB\r\n", ctx->heap->heap, 32768*4*1024/1024/1024);
         printf(ctx->GOP, &ConOut, "\r\n\nsubpage allocator: \r\n%lx to %lx\r\n", alloc.freeListStart, alloc.freeListEnd);
@@ -2056,12 +2063,13 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         ConOut.backColor = hex(0x000000);
         printf(ctx->GOP, &ConOut, "(Logo designed by Serafim)\r\n");
 
+        //logo
+        GOPDrawImage(ctx->GOP, ctx->GOP->Info->HorizontalResolution - nuckos_logo.width - 10, ctx->GOP->Info->VerticalResolution - nuckos_logo.height - 10, &nuckos_logo);
 
-
-        uint8_t is_mouse = read_PS2_input(&scancode, &dx, &dy, &lrm);
-        printf(ctx->GOP, &ConOut, "is mouse: %u\r\n", is_mouse);
+        //PS/2 input
+        uint8_t is_mouse = PS2_poll(&scancode, &dx, &dy, &lrm);
+        
         if(!is_mouse){ //keyboard
-            printf(ctx->GOP, &ConOut, "keyboard scancode: %u |\r\n", scancode);
             if(scancode & 0x80){
                 printf(ctx->GOP, &ConOut, "BREAK\r\n");
             }
@@ -2073,10 +2081,27 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
             if(mouseInitError){
                 printf(ctx->GOP, &ConOut, "mouse init error\r\n");
             }
+            else if(mouseSetSampleError){
+                printf(ctx->GOP, &ConOut, "mouse set sample rate error\r\n");
+            }
             else{
                 printf(ctx->GOP, &ConOut, "mouse input: %d, %d, %x\r\n", dx, dy, lrm);
+                pointerX += dx;
+                pointerY += dy;
+                if(lrm & 1){
+                    pointerX = 0;
+                    pointerY = 0;
+                }
+                //limits
+                if(pointerX < 0)pointerX = 0;
+                if(pointerX > ctx->GOP->Info->HorizontalResolution-1)pointerX = ctx->GOP->Info->HorizontalResolution-1;
+                if(pointerY < 0)pointerY = 0;
+                if(pointerY > ctx->GOP->Info->VerticalResolution-1)pointerY = ctx->GOP->Info->VerticalResolution-1;
             }
         }
+
+        //pointer icon
+        GOPDrawImage(ctx->GOP, pointerX, pointerY, &pointer_icon);
 
         //copy framebuffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
@@ -2087,24 +2112,50 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 //PS/2
 #define PS2_DATA 0x60
 #define PS2_STATUS 0x64
-
+static inline uint8_t PS2_read(uint8_t port){
+    while((inb(PS2_STATUS) & 0x01) == 0);
+    return inb(port);
+}
+static inline void PS2_command(uint8_t command){
+    while(inb(PS2_STATUS) & 0x02);
+    outb(PS2_STATUS, command);
+}
+static inline void PS2_write(uint8_t data, bool isMouse){
+    if(isMouse){
+        PS2_command(0xD4);
+    }
+    //send data
+    while(inb(PS2_STATUS) & 0x02);
+    outb(PS2_DATA, data);
+}
 uint8_t PS2_mouse_init() {
-    // Enable 2nd PS/2 port (mouse)
-    while (inb(PS2_STATUS) & 0x02);
-    outb(PS2_STATUS, 0xA8);
+    //enable second ps2 port
+    PS2_command(0xA8);
 
-    // Enable data reporting
-    mouse_write(0xF4);
-    uint8_t ack = mouse_read();
-    if (ack != 0xFA) {
+    //enable data reporting
+    PS2_write(0xF4, 1);
+    //read back ack
+    if(PS2_read(PS2_DATA) != 0xFA){
         return 1;
     }
     return 0;
 }
+uint8_t PS2_mouse_set_sample_rate(uint8_t rate){
+    PS2_write(0xF3, 1); //set sample rate command
+    //read back ack
+    if(PS2_read(PS2_DATA) != 0xFA){
+        return 1;
+    }
 
+    PS2_write(rate, 1);
+    //read back ack
+    if(PS2_read(PS2_DATA) != 0xFA){
+        return 1;
+    }
+    return 0;
+}
 uint8_t PS2_poll(uint8_t* scancode, int8_t* dx, int8_t* dy, uint8_t* lrm){
-    while((inb(PS2_STATUS) & 0x01) == 0);
-    uint8_t status = inb(PS2_STATUS);
+    uint8_t status = PS2_read(PS2_STATUS);
     uint8_t is_mouse = (status & 0x20) ? 1 : 0;
     if(!is_mouse){ //keyboard
         *scancode = inb(PS2_DATA);
@@ -2112,15 +2163,14 @@ uint8_t PS2_poll(uint8_t* scancode, int8_t* dx, int8_t* dy, uint8_t* lrm){
     else{ //mouse
         uint8_t bytes[3];
         for(int i = 0; i < 3; i++){
-            while (!(inb(PS2_STATUS) & 0x01));
-            bytes[i] = inb(PS2_DATA);
+            bytes[i] = PS2_read(PS2_DATA);
         }
         uint8_t state = bytes[0];
         *lrm = state & 0b111;
         uint8_t x = bytes[1];
         *dx = x - ((state << 4) & 0x100);
         uint8_t y = bytes[2];
-        *dy = y - ((state << 3) & 0x100);
+        *dy = -(y - ((state << 3) & 0x100));
     }
     return is_mouse;
 }
@@ -2338,9 +2388,26 @@ void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* img){
                     uint32_t color_byte = *(uint32_t*)(img->addr + row * bpr + col * 3);
                     uint32_t draw_x = x + col;
                     uint32_t draw_y = y + row;
-                    GOPPutPixel(GOP, draw_x, draw_y, hex(color_byte)); //color is ARGB;
+                    GOPPutPixel(GOP, draw_x, draw_y, hex(color_byte)); //color converted from RGB to ARGB
                 }
             }
+            break;
+        }
+        case 2: { //ARGB 4 byte per pixel, alpha 0 = transparent
+            uint32_t bpr = img->width * 4; //bytes per row
+            for(uint32_t row = 0;row < img->height;row++){
+                for(uint32_t col = 0;col < img->width;col++){
+                    //row, col is pixel position
+                    //get pixel byte position
+                    uint32_t color_byte = *(uint32_t*)(img->addr + row * bpr + col * 4);
+                    uint32_t draw_x = x + col;
+                    uint32_t draw_y = y + row;
+                    if(color_byte & 0xFF000000){
+                        GOPPutPixel(GOP, draw_x, draw_y, color_byte); //color is ARGB
+                    }
+                }
+            }
+            break;
         }
     }
 }
@@ -2380,7 +2447,7 @@ void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char* str, ...){
                 printChar(GOP, ConOut, (uint8_t)va_arg(args, int32_t));
                 break;
             case 's': //string
-                printString(GOP, ConOut, (uint8_t*)va_arg(args, uint8_t*));
+                printString(GOP, ConOut, (char*)va_arg(args, uint8_t*));
                 break;
 
             case 'd':
@@ -2498,7 +2565,7 @@ void printUint(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint64_t num, uint8_t b
         buff[index] = charmap[num % base]; //push digit to buffer
         num /= base;
     }
-    printString(GOP, ConOut, &buff[index]);
+    printString(GOP, ConOut, (char*)&buff[index]);
 }
 void printString(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char* string){
     while(*string){ //while it's not null
@@ -2673,17 +2740,16 @@ static inline void io_wait(){
 static inline void cpuid(int code, uint32_t* a, uint32_t* d){
     asm volatile("cpuid" : "=a"(*a), "=d"(*d) : "0"(code) : "ebx", "ecx");
 }
-uint8_t* cpuid_get_vendor(){
+void cpuid_get_vendor(uint8_t CPUVendor[13]){
     uint32_t CPUVendor_r[4];
     asm volatile("cpuid":"=a"(*CPUVendor_r),"=b"(*(CPUVendor_r+1)),
                 "=c"(*(CPUVendor_r+2)),"=d"(*(CPUVendor_r+3)):"a"(0));
-    uint8_t CPUVendor[13];
+
     ((uint32_t*)CPUVendor)[0] = CPUVendor_r[1];
     ((uint32_t*)CPUVendor)[1] = CPUVendor_r[3];
     ((uint32_t*)CPUVendor)[2] = CPUVendor_r[2];
     CPUVendor[12] = 0;
 
-    return CPUVendor;
 }
 uint64_t rdtsc(){
     uint32_t low, high;

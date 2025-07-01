@@ -7,7 +7,6 @@
 
 
 
-
 typedef struct __attribute__((packed)) {
     uint16_t offset_low;
     uint16_t segment;
@@ -78,8 +77,9 @@ typedef struct{
     EFI_PHYSICAL_ADDRESS               kernelStack;
     uint64_t                           kernelStackSize;
     KERNEL_HEAP*                       heap;
-    EFI_PHYSICAL_ADDRESS               videoFile;
-    EFI_PHYSICAL_ADDRESS               imageFile;
+    EFI_PHYSICAL_ADDRESS               badApple;
+    EFI_PHYSICAL_ADDRESS               nuckOSLogo;
+    EFI_PHYSICAL_ADDRESS               pointerIcon;
 } KERNEL_CONTEXT_TABLE;
 
 typedef struct{
@@ -92,9 +92,14 @@ typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;
 
 
 //PS/2
-
-
-
+#define PS2_DATA 0x60
+#define PS2_STATUS 0x64
+static inline uint8_t PS2_read(uint8_t port);
+static inline void PS2_command(uint8_t command);
+static inline void PS2_write(uint8_t data, bool isMouse);
+uint8_t PS2_mouse_init();
+uint8_t PS2_mouse_set_sample_rate(uint8_t rate);
+uint8_t PS2_poll(uint8_t* scancode, int8_t* dx, int8_t* dy, uint8_t* lrm);
 
 //PIC functions
 static inline void PIC_disable();
@@ -102,7 +107,6 @@ static inline void PIC_disable();
 void setIDTEntry(IDT_Entry* entry, uint16_t segment, uint64_t offset, uint8_t ISTOffset, uint8_t attributes);
 void setGDTEntry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags);
 void triple_fault();
-
 
 //dynamic memory allocation functions
 void subpage_alloc_init(KERNEL_SUBPAGE_ALLOCATOR* alloc);
@@ -142,7 +146,7 @@ static inline uint16_t inw(uint16_t port);
 static inline uint32_t inl(uint16_t port);
 static inline void io_wait();
 static inline void cpuid(int code, uint32_t* a, uint32_t* d);
-uint8_t* cpuid_get_vendor();
+void cpuid_get_vendor(uint8_t* CPUVendor);
 uint64_t rdtsc();
 
 
