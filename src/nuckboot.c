@@ -159,6 +159,103 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                 switch(selectedEntryIndex){
                     case 0: {
                         //Auto boot
+                        Print(L"loading kernel and data\r\n");
+                        root = openVolume(ST, ImageHandle); //opens root of filesystem of boot device
+                        
+                        kernel = loadFile(ST, root, L"kernel.bin");
+                        bad_apple = loadFile(ST, root, L"bad_apple.nvideo");
+                        nuckos_logo = loadFile(ST, root, L"nuckos_logo.nvideo");
+                        pointer_icon = loadFile(ST, root, L"pointer.nvideo");
+
+                        Print(L"files loaded successfully\r\n");
+                        status = uefi_call_wrapper(ST->BootServices->LocateProtocol, 3, &GOPGuid, NULL, (void**) &GOP);
+                        if(EFI_ERROR(status)){
+                            Print(L"No GOP\r\n");
+                            while(1);
+                        }
+                        status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP->Mode==NULL?0:GOP->Mode->Mode, &GOPInfoSize, &GOPInfo);
+                        //get the current video mode
+                        if(status == EFI_NOT_STARTED){
+                            status = uefi_call_wrapper(GOP->SetMode, 2, GOP, 0);
+                        }
+                        if(EFI_ERROR(status)){
+                            Print(L"Unable to get GOP native mode\r\n");
+                        }
+                        else{
+                            GOPNativeMode = GOP->Mode->Mode;
+                            GOPNumModes = GOP->Mode->MaxMode;
+                        }
+                        Print(L"GOP native mode: %d\r\nGOP number of modes: %d\r\n", GOPNativeMode, GOPNumModes);
+                        //query GOP modes
+                        for(UINTN i = 0;i<GOPNumModes;i++){
+                            status = uefi_call_wrapper(GOP->QueryMode, 4, GOP, i, &GOPInfoSize, &GOPInfo);
+                            if(EFI_ERROR(status)){
+                                Print(L"Get mode %d failed!", i);
+                            }
+                            else{
+                                Print(L"mode %d: %dx%d format %x%s\r\n", i, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, i == GOPNativeMode ? L"(current)" : L"");                  
+                            }
+                        }
+                        bestModeNum = 0;
+                        bestModePixelCount = 0;
+                        bestModeWidth = 0;
+                        for(UINTN i = 0;i<GOPNumModes;i++){
+                            uefi_call_wrapper(GOP->QueryMode, 4, GOP, i, &GOPInfoSize, &GOPInfo);
+                            if(GOPInfo->PixelFormat != 1){
+                                continue;
+                            }
+                            UINTN pixelCount = GOPInfo->HorizontalResolution * GOPInfo->VerticalResolution;
+                            if(pixelCount > bestModePixelCount){
+                                bestModePixelCount = pixelCount;
+                                bestModeNum = i;
+                                bestModeWidth = GOPInfo->HorizontalResolution;
+                            }
+                            else if(pixelCount == bestModePixelCount){
+                                if(bestModeWidth > GOPInfo->HorizontalResolution){
+                                    bestModeNum = i;
+                                    bestModeWidth = GOPInfo->HorizontalResolution;
+                                }
+                            }
+                        }
+                        uefi_call_wrapper(GOP->QueryMode, 4, GOP, bestModeNum, &GOPInfoSize, &GOPInfo);
+                        Print(L"Selected:\r\nmode %d: %dx%d format %x%s\r\n", bestModeNum, GOPInfo->HorizontalResolution, GOPInfo->VerticalResolution, GOPInfo->PixelFormat, bestModeNum == GOPNativeMode ? L"(current)" : L"");
+                        uefi_call_wrapper(GOP->QueryMode, 4, GOP, bestModeNum, &GOPInfoSize, &GOPInfo);
+                        //Set GOP mode
+                        status = uefi_call_wrapper(GOP->SetMode, 2, GOP, bestModeNum);
+                        if(EFI_ERROR(status)){
+                            Print(L"Unable to set GOP mode %d\r\n", bestModeNum);
+                            while(1);
+                        }
+
+                        //allocate memory for backbuffer
+                        status = uefi_call_wrapper(ST->BootServices->AllocatePool, 3, EfiLoaderData, GOP->Mode->FrameBufferSize, &fb2_addr);
+                        if(EFI_ERROR(status)){
+                            Print(L"Can't allocate pool of %d bytes for video backbuffer\r\n", GOP->Mode->FrameBufferSize);
+                            while(1);
+                        }
+                        //allocate memory for kernel stack(2 MiB)
+                        status = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, kernel_stack_size, &kernel_stack);
+                        if(EFI_ERROR(status)){
+                            Print(L"Can't allocate %d pages for kernel stack\r\n", kernel_stack_size);
+                            while(1);
+                        }
+                        //allocate memory for kernel heap map(1 page = 4096 bytes = maps to 32768 pages)
+                        status = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, 1, &kernel_heap_map);
+                        if(EFI_ERROR(status)){
+                            Print(L"Can't allocate %d pages for kernel heap map\r\n", 1);
+                            while(1);
+                        }
+                        //allocate memory for kernel heap(32768 pages = 1342117728 bytes = 128 MiB heap)
+                        status = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, 32768, &kernel_heap);
+                        if(EFI_ERROR(status)){
+                            Print(L"Can't allocate %d pages for kernel heap\r\n", 32768);
+                            while(1);
+                        }
+
+                        //get memory map
+                        status = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, &MemoryMapSize, MemoryMap, &MapKey, &DescriptorSize, &DescriptorVersion);
+                        uefi_call_wrapper(ST->BootServices->ExitBootServices, 2, ImageHandle, MapKey);
+                        goto exit_boot_services;
                         break;
                     }
                     case 1: {

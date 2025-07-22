@@ -1,18 +1,3 @@
-/*
- * nvframe-lite.c
- *
- * Reads a directory of .bmp/.png frames with a given extension,
- * sorts them lexicographically, and writes a custom “.nvideo” file:
- *
- *  Header: uint32_t format, width, height, frame_count
- *  Payload per frame in one of three formats:
- *    0 = 1-bit grayscale
- *    1 = 24-bit RGB
- *    2 = 32-bit ARGB
- *
- * Build:
- *   gcc -std=c11 -O2 -o nvframe-lite nvframe-lite.c stb_image.c
- */
 
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>

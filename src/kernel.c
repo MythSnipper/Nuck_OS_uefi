@@ -2,7 +2,6 @@
 
 
 void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
-    
     //set GDT entries
     __attribute__((aligned(0x10)))static GDT_Entry GDT[3];
     static GDT_Descriptor GDTPtr;
@@ -329,7 +328,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     );
     //disable PIC
     PIC_disable();
-
 
     uint8_t versionMajor = 1;
     uint8_t versionMinor = 3;
@@ -1963,11 +1961,11 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         ctx->GOP->FrameBufferBase = backbuf; //set the GOP address to backbuffer
     }
 
-    
     KERNEL_TEXT_OUTPUT title = {VGAfont, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
     KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
     KERNEL_TEXT_OUTPUT HeapOut = {VGAfont, 8, 16, 1, 1, 0, 0, 0, 0, hex(0xFF10F0), hex(0x000000), false};
 
+    //NVIDEO RESOURCES
     KERNEL_NVIDEO bad_apple;
     KERNEL_NVIDEO nuckos_logo;
     KERNEL_NVIDEO pointer_icon;
@@ -1977,7 +1975,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     NVIDEOParseHeader(&nuckos_logo, (uint8_t*) ctx->nuckOSLogo);
     NVIDEOParseHeader(&pointer_icon, (uint8_t*) ctx->pointerIcon);
 
-    //MEM ALLOC STUFFFFFF IDK
+    //MEM ALLOC TESTS
     heap_init(ctx->heap);   
     void* testPtr = heap_alloc(ctx->heap, 2);
     void* testPtr2 = heap_alloc(ctx->heap, 1);
@@ -1990,7 +1988,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     void* subPtr2 = subpage_alloc(&alloc);
     heap_free(ctx->heap, testPtr, 1);
 
-    
     //setup input devices
     uint8_t scancode;
 
@@ -1999,14 +1996,12 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     int8_t dx;
     int8_t dy;
     uint8_t lrm;
-    
 
-    //pointer position
+    //mouse pointer position
     int32_t pointerX = 0;
     int32_t pointerY = 0;
 
     while(true){
-
         //display
         title = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
         ConOut = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
@@ -2109,6 +2104,10 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     while(true);
 }
 
+
+
+
+
 //PS/2
 #define PS2_DATA 0x60
 #define PS2_STATUS 0x64
@@ -2128,6 +2127,7 @@ static inline void PS2_write(uint8_t data, bool isMouse){
     while(inb(PS2_STATUS) & 0x02);
     outb(PS2_DATA, data);
 }
+
 uint8_t PS2_mouse_init() {
     //enable second ps2 port
     PS2_command(0xA8);
@@ -2756,13 +2756,6 @@ uint64_t rdtsc(){
     asm volatile("rdtsc":"=a"(low),"=d"(high));
     return ((uint64_t)high << 32) | low;
 }
-
-
-
-
-
-
-
 
 
 

@@ -168,7 +168,7 @@ copyimg:
 #test in qemu
 qemu:
 	sudo sync
-	sudo qemu-system-x86_64 \
+	sudo -E qemu-system-x86_64 \
 	-cpu host \
 	-enable-kvm \
 	-m 8192 \
@@ -181,7 +181,7 @@ qemu:
 #test in qemu(slow)
 qemu-slow:
 	sudo sync
-	sudo qemu-system-x86_64 \
+	sudo -E qemu-system-x86_64 \
 	-icount shift=10,sleep=on \
 	-m 8192 \
 	-net none \
