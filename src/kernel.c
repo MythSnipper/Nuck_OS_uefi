@@ -2058,6 +2058,9 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         ConOut.backColor = hex(0x000000);
         printf(ctx->GOP, &ConOut, "(Logo designed by Serafim)\r\n");
 
+        viewConfigTables(ctx->GOP, &ConOut, ctx->ConfigTable, ctx->ConfigTableEntriesCount);
+
+
         //logo
         GOPDrawImage(ctx->GOP, ctx->GOP->Info->HorizontalResolution - nuckos_logo.width - 10, ctx->GOP->Info->VerticalResolution - nuckos_logo.height - 10, &nuckos_logo);
 
@@ -2071,6 +2074,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
             else{
                 printf(ctx->GOP, &ConOut, "MAKE\r\n");
             }
+            printf(ctx->GOP, &ConOut, ":%x\r\n", scancode);
         }
         else{ //mouse
             if(mouseInitError){
@@ -2104,9 +2108,90 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     while(true);
 }
 
+//config table related functions
+void viewConfigTables(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* con, EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries){
 
+    EFI_GUID GUIDTableKeys[] = {
+        {0x8868e871,0xe4f1,0x11d3,{0xbc,0x22,0x00,0x80,0xc7,0x3c,0x88,0x81}},
+        {0xeb9d2d30,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
+        {0xeb9d2d32,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
+        {0xeb9d2d31,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
+        {0xf2fd1544,0x9794,0x4a2c,{0x99,0x2e,0xe5,0xbb,0xcf,0x20,0xe3,0x94}},
+        {0xeb9d2d2f,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
+        {0x87367f87,0x1119,0x41ce,{0xaa,0xec,0x8b,0xe0,0x11,0x1f,0x55,0x8a}},
+        {0x35e7a725,0x8dd2,0x4cac,{0x80,0x11,0x33,0xcd,0xa8,0x10,0x90,0x56}},
+        {0xdbc461c3,0xb3de,0x422a,{0xb9,0xb4,0x98,0x86,0xfd,0x49,0xa1,0xe5}},
+        {0xb1b621d5,0xf19c,0x41a5,{0x83,0x0b,0xd9,0x15,0x2c,0x69,0xaa,0xe0}},
+        {0xeb66918a,0x7eef,0x402a,{0x84,0x2e,0x93,0x1d,0x21,0xc3,0x8a,0xe9}},
+        {0xdcfa911d,0x26eb,0x469f,{0xa2,0x20,0x38,0xb7,0xdc,0x46,0x12,0x20}},
+        {0x36122546,0xf7e7,0x4c8f,{0xbd,0x9b,0xeb,0x85,0x25,0xb5,0x0c,0x0b}},
+        {0x523c91af,0xa195,0x4382,{0x81,0x8d,0x29,0x5f,0xe4,0x00,0x64,0x65}},
+        {0x0de9f0ec,0x88b6,0x428f,{0x97,0x7a,0x25,0x8f,0x1d,0x0e,0x5e,0x72}},
+        {0x49152E77,0x1ADA,0x4764,{0xB7,0xA2,0x7A,0xFE,0xFE,0xD9,0x5E,0x8B}},
+        {0xb122a263,0x3661,0x4f68,{0x99,0x29,0x78,0xf8,0xb0,0xd6,0x21,0x80}},
+        {0xd719b2cb,0x3d3a,0x4596,{0xa3,0xbc,0xda,0xd0,0x0e,0x67,0x65,0x6f}}
+    };
+    char* GUIDTableValues[] = {
+        "ACPI 2.0 TABLE",
+        "ACPI TABLE",
+        "SAL SYSTEM TABLE",
+        "SMBIOS TABLE",
+        "SMBIOS3 TABLE",
+        "MPS TABLE",
+        "JSON CONFIG DATA TABLE",
+        "JSON CAPSULE DATA TABLE",
+        "JSON CAPSULE RESULT TABLE",
+        "DTB TABLE",
+        "RT PROPERTIES TABLE",
+        "MEMORY ATTRIBUTES TABLE",
+        "CONFORMANCE PROFILE TABLE",
+        "CONFORMANCE PROFILES UEFI SPEC",
+        "MEMORY RANGE CAPSULE",
+        "DEBUG IMAGE INFO TABLE",
+        "SYSTEM RESOURCE TABLE"
+        "IMAGE SECURITY DATABASE"
+    };
+    EFI_CONFIGURATION_TABLE table;
 
+    printf(GOP, con, "Number of configuration table entries: %u\r\n", entries);
+    for(uint64_t entry = 0;entry < entries;entry++){
+        table = tablePtr[entry];
+        printf(GOP, con, "Table #%u:", entry+1);
+        printGUID(GOP, con, &table.VendorGuid);
+        for(uint32_t guidIndex = 0;guidIndex < (sizeof(GUIDTableKeys)/sizeof(GUIDTableKeys[0]));guidIndex++){
+            if(cmpGUID(&table.VendorGuid, &GUIDTableKeys[guidIndex])){
+                printf(GOP, con, "  %s", GUIDTableValues[guidIndex]);
+                break;
+            }
+        }
+        printf(GOP, con, "  ptr: 0x%lx\r\n", tablePtr->VendorTable);
+    }
+    printf(GOP, con, "----------END----------\r\n");
+}
 
+void printGUID(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* con, EFI_GUID* guid){
+    printf(GOP, con, "GUID: %x-%x-%x-", guid->Data1, guid->Data2, guid->Data3);
+    printf(GOP, con, "%x-%x-%x-%x-%x-%x-%x-%x",
+        guid->Data4[0],
+        guid->Data4[1],
+        guid->Data4[2],
+        guid->Data4[3],
+        guid->Data4[4],
+        guid->Data4[5],
+        guid->Data4[6],
+        guid->Data4[7]
+    );
+}
+
+uint8_t cmpGUID(EFI_GUID* guid1, EFI_GUID* guid2){
+    if(guid1->Data1 != guid2->Data1)return 0;
+    if(guid1->Data2 != guid2->Data2)return 0;
+    if(guid1->Data3 != guid2->Data3)return 0;
+    for(uint8_t c = 0;c < 8;c++){
+        if(guid1->Data4[c] != guid2->Data4[c])return 0;
+    }
+    return 1;
+}
 
 //PS/2
 #define PS2_DATA 0x60
@@ -2756,7 +2841,6 @@ uint64_t rdtsc(){
     asm volatile("rdtsc":"=a"(low),"=d"(high));
     return ((uint64_t)high << 32) | low;
 }
-
 
 
 

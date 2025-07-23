@@ -489,6 +489,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         MemoryMap,
         MemoryMapSize,
         DescriptorSize,
+        ST->ConfigurationTable,
+        ST->NumberOfTableEntries,
         GOP->Mode,
         fb2_addr,
         kernel_stack,

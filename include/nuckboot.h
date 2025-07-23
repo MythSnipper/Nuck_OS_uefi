@@ -33,6 +33,8 @@ typedef struct{
     EFI_MEMORY_DESCRIPTOR*             MemoryMap;
     uint64_t                           MemoryMapSize;
     uint64_t                           MemoryMapDescriptorSize;
+    EFI_CONFIGURATION_TABLE*           ConfigTable;
+    uint64_t                           ConfigTableEntriesCount;
     EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* GOP;
     EFI_PHYSICAL_ADDRESS               fb; //backbuffer in bootloader, frontbuffer in kernel
     EFI_PHYSICAL_ADDRESS               kernelStack;

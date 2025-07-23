@@ -72,6 +72,8 @@ typedef struct{
     EFI_MEMORY_DESCRIPTOR*             MemoryMap;
     uint64_t                           MemoryMapSize;
     uint64_t                           MemoryMapDescriptorSize;
+    EFI_CONFIGURATION_TABLE*           ConfigTable;
+    uint64_t                           ConfigTableEntriesCount;
     EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* GOP;
     EFI_PHYSICAL_ADDRESS               fb; //backbuffer in bootloader, frontbuffer in kernel
     EFI_PHYSICAL_ADDRESS               kernelStack;
@@ -89,6 +91,13 @@ typedef struct{
 } KERNEL_SUBPAGE_ALLOCATOR;
 
 typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;
+
+//config table related
+void viewConfigTables(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* con, EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries);
+
+void printGUID(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* con, EFI_GUID* guid);
+uint8_t cmpGUID(EFI_GUID* guid1, EFI_GUID* guid2);
+
 
 
 //PS/2
