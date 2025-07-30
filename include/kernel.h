@@ -5,6 +5,7 @@
 #include <efi.h>
 #include <efilib.h>
 
+#include "../include/isr.h"
 
 
 typedef struct __attribute__((packed)) {
@@ -79,13 +80,11 @@ typedef struct{
     EFI_PHYSICAL_ADDRESS               kernelStack;
     uint64_t                           kernelStackSize;
     KERNEL_HEAP*                       heap;
-    EFI_PHYSICAL_ADDRESS               badApple;
-    EFI_PHYSICAL_ADDRESS               nuckOSLogo;
-    EFI_PHYSICAL_ADDRESS               pointerIcon;
+    EFI_PHYSICAL_ADDRESS*              resource_addrs;
 } KERNEL_CONTEXT_TABLE;
 
 typedef struct{
-    KERNEL_HEAP* heap;
+    KERNEL_HEAP*  heap;
     uint64_t*     freeListStart;
     uint64_t*     freeListEnd;
 } KERNEL_SUBPAGE_ALLOCATOR;
@@ -93,12 +92,13 @@ typedef struct{
 typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;
 
 //config table related
+void* getConfigTable(EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries, uint8_t tableindex);
 void viewConfigTables(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* con, EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries);
 
 void printGUID(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* con, EFI_GUID* guid);
 uint8_t cmpGUID(EFI_GUID* guid1, EFI_GUID* guid2);
 
-
+typedef void (*Kernel_entry)(KERNEL_CONTEXT_TABLE*);
 
 //PS/2
 #define PS2_DATA 0x60
@@ -157,269 +157,6 @@ static inline void io_wait();
 static inline void cpuid(int code, uint32_t* a, uint32_t* d);
 void cpuid_get_vendor(uint8_t* CPUVendor);
 uint64_t rdtsc();
-
-
-
-
-void isr_0();
-void isr_1();
-void isr_2();
-void isr_3();
-void isr_4();
-void isr_5();
-void isr_6();
-void isr_7();
-void isr_8();
-void isr_9();
-void isr_10();
-void isr_11();
-void isr_12();
-void isr_13();
-void isr_14();
-void isr_15();
-void isr_16();
-void isr_17();
-void isr_18();
-void isr_19();
-void isr_20();
-void isr_21();
-void isr_22();
-void isr_23();
-void isr_24();
-void isr_25();
-void isr_26();
-void isr_27();
-void isr_28();
-void isr_29();
-void isr_30();
-void isr_31();
-void isr_32();
-void isr_33();
-void isr_34();
-void isr_35();
-void isr_36();
-void isr_37();
-void isr_38();
-void isr_39();
-void isr_40();
-void isr_41();
-void isr_42();
-void isr_43();
-void isr_44();
-void isr_45();
-void isr_46();
-void isr_47();
-void isr_48();
-void isr_49();
-void isr_50();
-void isr_51();
-void isr_52();
-void isr_53();
-void isr_54();
-void isr_55();
-void isr_56();
-void isr_57();
-void isr_58();
-void isr_59();
-void isr_60();
-void isr_61();
-void isr_62();
-void isr_63();
-void isr_64();
-void isr_65();
-void isr_66();
-void isr_67();
-void isr_68();
-void isr_69();
-void isr_70();
-void isr_71();
-void isr_72();
-void isr_73();
-void isr_74();
-void isr_75();
-void isr_76();
-void isr_77();
-void isr_78();
-void isr_79();
-void isr_80();
-void isr_81();
-void isr_82();
-void isr_83();
-void isr_84();
-void isr_85();
-void isr_86();
-void isr_87();
-void isr_88();
-void isr_89();
-void isr_90();
-void isr_91();
-void isr_92();
-void isr_93();
-void isr_94();
-void isr_95();
-void isr_96();
-void isr_97();
-void isr_98();
-void isr_99();
-void isr_100();
-void isr_101();
-void isr_102();
-void isr_103();
-void isr_104();
-void isr_105();
-void isr_106();
-void isr_107();
-void isr_108();
-void isr_109();
-void isr_110();
-void isr_111();
-void isr_112();
-void isr_113();
-void isr_114();
-void isr_115();
-void isr_116();
-void isr_117();
-void isr_118();
-void isr_119();
-void isr_120();
-void isr_121();
-void isr_122();
-void isr_123();
-void isr_124();
-void isr_125();
-void isr_126();
-void isr_127();
-void isr_128();
-void isr_129();
-void isr_130();
-void isr_131();
-void isr_132();
-void isr_133();
-void isr_134();
-void isr_135();
-void isr_136();
-void isr_137();
-void isr_138();
-void isr_139();
-void isr_140();
-void isr_141();
-void isr_142();
-void isr_143();
-void isr_144();
-void isr_145();
-void isr_146();
-void isr_147();
-void isr_148();
-void isr_149();
-void isr_150();
-void isr_151();
-void isr_152();
-void isr_153();
-void isr_154();
-void isr_155();
-void isr_156();
-void isr_157();
-void isr_158();
-void isr_159();
-void isr_160();
-void isr_161();
-void isr_162();
-void isr_163();
-void isr_164();
-void isr_165();
-void isr_166();
-void isr_167();
-void isr_168();
-void isr_169();
-void isr_170();
-void isr_171();
-void isr_172();
-void isr_173();
-void isr_174();
-void isr_175();
-void isr_176();
-void isr_177();
-void isr_178();
-void isr_179();
-void isr_180();
-void isr_181();
-void isr_182();
-void isr_183();
-void isr_184();
-void isr_185();
-void isr_186();
-void isr_187();
-void isr_188();
-void isr_189();
-void isr_190();
-void isr_191();
-void isr_192();
-void isr_193();
-void isr_194();
-void isr_195();
-void isr_196();
-void isr_197();
-void isr_198();
-void isr_199();
-void isr_200();
-void isr_201();
-void isr_202();
-void isr_203();
-void isr_204();
-void isr_205();
-void isr_206();
-void isr_207();
-void isr_208();
-void isr_209();
-void isr_210();
-void isr_211();
-void isr_212();
-void isr_213();
-void isr_214();
-void isr_215();
-void isr_216();
-void isr_217();
-void isr_218();
-void isr_219();
-void isr_220();
-void isr_221();
-void isr_222();
-void isr_223();
-void isr_224();
-void isr_225();
-void isr_226();
-void isr_227();
-void isr_228();
-void isr_229();
-void isr_230();
-void isr_231();
-void isr_232();
-void isr_233();
-void isr_234();
-void isr_235();
-void isr_236();
-void isr_237();
-void isr_238();
-void isr_239();
-void isr_240();
-void isr_241();
-void isr_242();
-void isr_243();
-void isr_244();
-void isr_245();
-void isr_246();
-void isr_247();
-void isr_248();
-void isr_249();
-void isr_250();
-void isr_251();
-void isr_252();
-void isr_253();
-void isr_254();
-void isr_255();
-
-
-
 
 
 #endif

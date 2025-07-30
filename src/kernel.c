@@ -1,6 +1,6 @@
 #include "../include/kernel.h"
 
-
+__attribute__((section(".text.boot")))
 void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     //set GDT entries
     __attribute__((aligned(0x10)))static GDT_Entry GDT[3];
@@ -49,8 +49,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     IDTPtr.size = sizeof(IDT)-1;
     IDTPtr.offset = (uint64_t)&IDT;
 
-    outb(0xA1, 0xFF); // Mask all IRQs on slave PIC
-    outb(0x21, 0xFF); // Mask all IRQs on master PIC
+    //disable PIC
+    PIC_disable();
 
     //interrupts
     {
@@ -328,6 +328,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     );
     //disable PIC
     PIC_disable();
+    
 
     uint8_t versionMajor = 1;
     uint8_t versionMinor = 3;
@@ -1971,9 +1972,9 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     KERNEL_NVIDEO pointer_icon;
 
     //parse media headers
-    NVIDEOParseHeader(&bad_apple, (uint8_t*) ctx->badApple);
-    NVIDEOParseHeader(&nuckos_logo, (uint8_t*) ctx->nuckOSLogo);
-    NVIDEOParseHeader(&pointer_icon, (uint8_t*) ctx->pointerIcon);
+    NVIDEOParseHeader(&bad_apple, (uint8_t*) ctx->resource_addrs[1]);
+    NVIDEOParseHeader(&nuckos_logo, (uint8_t*) ctx->resource_addrs[2]);
+    NVIDEOParseHeader(&pointer_icon, (uint8_t*) ctx->resource_addrs[3]);
 
     //MEM ALLOC TESTS
     heap_init(ctx->heap);   
@@ -2093,9 +2094,9 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
                 }
                 //limits
                 if(pointerX < 0)pointerX = 0;
-                if(pointerX > ctx->GOP->Info->HorizontalResolution-1)pointerX = ctx->GOP->Info->HorizontalResolution-1;
+                if(pointerX > (int32_t)(ctx->GOP->Info->HorizontalResolution-1))pointerX = ctx->GOP->Info->HorizontalResolution-1;
                 if(pointerY < 0)pointerY = 0;
-                if(pointerY > ctx->GOP->Info->VerticalResolution-1)pointerY = ctx->GOP->Info->VerticalResolution-1;
+                if(pointerY > (int32_t)(ctx->GOP->Info->VerticalResolution-1))pointerY = ctx->GOP->Info->VerticalResolution-1;
             }
         }
 
@@ -2109,6 +2110,57 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 }
 
 //config table related functions
+void* getConfigTable(EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries, uint8_t tableindex){
+
+    EFI_GUID GUIDTableKeys[] = {
+        {0x8868e871,0xe4f1,0x11d3,{0xbc,0x22,0x00,0x80,0xc7,0x3c,0x88,0x81}},
+        {0xeb9d2d30,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
+        {0xeb9d2d32,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
+        {0xeb9d2d31,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
+        {0xf2fd1544,0x9794,0x4a2c,{0x99,0x2e,0xe5,0xbb,0xcf,0x20,0xe3,0x94}},
+        {0xeb9d2d2f,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
+        {0x87367f87,0x1119,0x41ce,{0xaa,0xec,0x8b,0xe0,0x11,0x1f,0x55,0x8a}},
+        {0x35e7a725,0x8dd2,0x4cac,{0x80,0x11,0x33,0xcd,0xa8,0x10,0x90,0x56}},
+        {0xdbc461c3,0xb3de,0x422a,{0xb9,0xb4,0x98,0x86,0xfd,0x49,0xa1,0xe5}},
+        {0xb1b621d5,0xf19c,0x41a5,{0x83,0x0b,0xd9,0x15,0x2c,0x69,0xaa,0xe0}},
+        {0xeb66918a,0x7eef,0x402a,{0x84,0x2e,0x93,0x1d,0x21,0xc3,0x8a,0xe9}},
+        {0xdcfa911d,0x26eb,0x469f,{0xa2,0x20,0x38,0xb7,0xdc,0x46,0x12,0x20}},
+        {0x36122546,0xf7e7,0x4c8f,{0xbd,0x9b,0xeb,0x85,0x25,0xb5,0x0c,0x0b}},
+        {0x523c91af,0xa195,0x4382,{0x81,0x8d,0x29,0x5f,0xe4,0x00,0x64,0x65}},
+        {0x0de9f0ec,0x88b6,0x428f,{0x97,0x7a,0x25,0x8f,0x1d,0x0e,0x5e,0x72}},
+        {0x49152E77,0x1ADA,0x4764,{0xB7,0xA2,0x7A,0xFE,0xFE,0xD9,0x5E,0x8B}},
+        {0xb122a263,0x3661,0x4f68,{0x99,0x29,0x78,0xf8,0xb0,0xd6,0x21,0x80}},
+        {0xd719b2cb,0x3d3a,0x4596,{0xa3,0xbc,0xda,0xd0,0x0e,0x67,0x65,0x6f}}
+    };
+    char* GUIDTableValues[] = {
+        "ACPI 2.0 TABLE",
+        "ACPI TABLE",
+        "SAL SYSTEM TABLE",
+        "SMBIOS TABLE",
+        "SMBIOS3 TABLE",
+        "MPS TABLE",
+        "JSON CONFIG DATA TABLE",
+        "JSON CAPSULE DATA TABLE",
+        "JSON CAPSULE RESULT TABLE",
+        "DTB TABLE",
+        "RT PROPERTIES TABLE",
+        "MEMORY ATTRIBUTES TABLE",
+        "CONFORMANCE PROFILE TABLE",
+        "CONFORMANCE PROFILES UEFI SPEC",
+        "MEMORY RANGE CAPSULE",
+        "DEBUG IMAGE INFO TABLE",
+        "SYSTEM RESOURCE TABLE"
+        "IMAGE SECURITY DATABASE"
+    };
+    EFI_CONFIGURATION_TABLE table;
+    for(uint64_t entry = 0;entry < entries;entry++){
+        table = tablePtr[entry]; 
+        if(cmpGUID(&table.VendorGuid, &GUIDTableKeys[tableindex])){
+            return tablePtr->VendorTable;
+        }
+    }
+    return NULL;
+}
 void viewConfigTables(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* con, EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries){
 
     EFI_GUID GUIDTableKeys[] = {
@@ -2825,7 +2877,7 @@ static inline void io_wait(){
 static inline void cpuid(int code, uint32_t* a, uint32_t* d){
     asm volatile("cpuid" : "=a"(*a), "=d"(*d) : "0"(code) : "ebx", "ecx");
 }
-void cpuid_get_vendor(uint8_t CPUVendor[13]){
+void cpuid_get_vendor(uint8_t* CPUVendor){
     uint32_t CPUVendor_r[4];
     asm volatile("cpuid":"=a"(*CPUVendor_r),"=b"(*(CPUVendor_r+1)),
                 "=c"(*(CPUVendor_r+2)),"=d"(*(CPUVendor_r+3)):"a"(0));
@@ -2841,785 +2893,4 @@ uint64_t rdtsc(){
     asm volatile("rdtsc":"=a"(low),"=d"(high));
     return ((uint64_t)high << 32) | low;
 }
-
-
-
-void isr_0(){
-    asm volatile("iretq");
-}
-void isr_1(){
-    asm volatile("iretq");
-}
-void isr_2(){
-    asm volatile("iretq");
-}
-void isr_3(){
-    asm volatile("iretq");
-}
-void isr_4(){
-    asm volatile("iretq");
-}
-void isr_5(){
-    asm volatile("iretq");
-}
-void isr_6(){
-    asm volatile("iretq");
-}
-void isr_7(){
-    asm volatile("iretq");
-}
-void isr_8(){
-    asm volatile("iretq");
-}
-void isr_9(){
-    asm volatile("iretq");
-}
-void isr_10(){
-    asm volatile("iretq");
-}
-void isr_11(){
-    asm volatile("iretq");
-}
-void isr_12(){
-    asm volatile("iretq");
-}
-void isr_13(){
-    asm volatile("iretq");
-}
-void isr_14(){
-    asm volatile("iretq");
-}
-void isr_15(){
-    asm volatile("iretq");
-}
-void isr_16(){
-    asm volatile("iretq");
-}
-void isr_17(){
-    asm volatile("iretq");
-}
-void isr_18(){
-    asm volatile("iretq");
-}
-void isr_19(){
-    asm volatile("iretq");
-}
-void isr_20(){
-    asm volatile("iretq");
-}
-void isr_21(){
-    asm volatile("iretq");
-}
-void isr_22(){
-    asm volatile("iretq");
-}
-void isr_23(){
-    asm volatile("iretq");
-}
-void isr_24(){
-    asm volatile("iretq");
-}
-void isr_25(){
-    asm volatile("iretq");
-}
-void isr_26(){
-    asm volatile("iretq");
-}
-void isr_27(){
-    asm volatile("iretq");
-}
-void isr_28(){
-    asm volatile("iretq");
-}
-void isr_29(){
-    asm volatile("iretq");
-}
-void isr_30(){
-    asm volatile("iretq");
-}
-void isr_31(){
-    asm volatile("iretq");
-}
-
-
-void isr_32(){
-    asm volatile("iretq");
-}
-void isr_33(){
-
-    asm volatile("iretq");
-}
-void isr_34(){
-    asm volatile("iretq");
-}
-void isr_35(){
-    asm volatile("iretq");
-}
-void isr_36(){
-    asm volatile("iretq");
-}
-void isr_37(){
-    asm volatile("iretq");
-}
-void isr_38(){
-    asm volatile("iretq");
-}
-void isr_39(){
-    asm volatile("iretq");
-}
-void isr_40(){
-    asm volatile("iretq");
-}
-void isr_41(){
-    asm volatile("iretq");
-}
-void isr_42(){
-    asm volatile("iretq");
-}
-void isr_43(){
-    asm volatile("iretq");
-}
-void isr_44(){
-    asm volatile("iretq");
-}
-void isr_45(){
-    asm volatile("iretq");
-}
-void isr_46(){
-    asm volatile("iretq");
-}
-void isr_47(){
-    asm volatile("iretq");
-}
-void isr_48(){
-    asm volatile("iretq");
-}
-void isr_49(){
-    asm volatile("iretq");
-}
-void isr_50(){
-    asm volatile("iretq");
-}
-void isr_51(){
-    asm volatile("iretq");
-}
-void isr_52(){
-    asm volatile("iretq");
-}
-void isr_53(){
-    asm volatile("iretq");
-}
-void isr_54(){
-    asm volatile("iretq");
-}
-void isr_55(){
-    asm volatile("iretq");
-}
-void isr_56(){
-    asm volatile("iretq");
-}
-void isr_57(){
-    asm volatile("iretq");
-}
-void isr_58(){
-    asm volatile("iretq");
-}
-void isr_59(){
-    asm volatile("iretq");
-}
-void isr_60(){
-    asm volatile("iretq");
-}
-void isr_61(){
-    asm volatile("iretq");
-}
-void isr_62(){
-    asm volatile("iretq");
-}
-void isr_63(){
-    asm volatile("iretq");
-}
-void isr_64(){
-    asm volatile("iretq");
-}
-void isr_65(){
-    asm volatile("iretq");
-}
-void isr_66(){
-    asm volatile("iretq");
-}
-void isr_67(){
-    asm volatile("iretq");
-}
-void isr_68(){
-    asm volatile("iretq");
-}
-void isr_69(){
-    asm volatile("iretq");
-}
-void isr_70(){
-    asm volatile("iretq");
-}
-void isr_71(){
-    asm volatile("iretq");
-}
-void isr_72(){
-    asm volatile("iretq");
-}
-void isr_73(){
-    asm volatile("iretq");
-}
-void isr_74(){
-    asm volatile("iretq");
-}
-void isr_75(){
-    asm volatile("iretq");
-}
-void isr_76(){
-    asm volatile("iretq");
-}
-void isr_77(){
-    asm volatile("iretq");
-}
-void isr_78(){
-    asm volatile("iretq");
-}
-void isr_79(){
-    asm volatile("iretq");
-}
-void isr_80(){
-    asm volatile("iretq");
-}
-void isr_81(){
-    asm volatile("iretq");
-}
-void isr_82(){
-    asm volatile("iretq");
-}
-void isr_83(){
-    asm volatile("iretq");
-}
-void isr_84(){
-    asm volatile("iretq");
-}
-void isr_85(){
-    asm volatile("iretq");
-}
-void isr_86(){
-    asm volatile("iretq");
-}
-void isr_87(){
-    asm volatile("iretq");
-}
-void isr_88(){
-    asm volatile("iretq");
-}
-void isr_89(){
-    asm volatile("iretq");
-}
-void isr_90(){
-    asm volatile("iretq");
-}
-void isr_91(){
-    asm volatile("iretq");
-}
-void isr_92(){
-    asm volatile("iretq");
-}
-void isr_93(){
-    asm volatile("iretq");
-}
-void isr_94(){
-    asm volatile("iretq");
-}
-void isr_95(){
-    asm volatile("iretq");
-}
-void isr_96(){
-    asm volatile("iretq");
-}
-void isr_97(){
-    asm volatile("iretq");
-}
-void isr_98(){
-    asm volatile("iretq");
-}
-void isr_99(){
-    asm volatile("iretq");
-}
-void isr_100(){
-    asm volatile("iretq");
-}
-void isr_101(){
-    asm volatile("iretq");
-}
-void isr_102(){
-    asm volatile("iretq");
-}
-void isr_103(){
-    asm volatile("iretq");
-}
-void isr_104(){
-    asm volatile("iretq");
-}
-void isr_105(){
-    asm volatile("iretq");
-}
-void isr_106(){
-    asm volatile("iretq");
-}
-void isr_107(){
-    asm volatile("iretq");
-}
-void isr_108(){
-    asm volatile("iretq");
-}
-void isr_109(){
-    asm volatile("iretq");
-}
-void isr_110(){
-    asm volatile("iretq");
-}
-void isr_111(){
-    asm volatile("iretq");
-}
-void isr_112(){
-    asm volatile("iretq");
-}
-void isr_113(){
-    asm volatile("iretq");
-}
-void isr_114(){
-    asm volatile("iretq");
-}
-void isr_115(){
-    asm volatile("iretq");
-}
-void isr_116(){
-    asm volatile("iretq");
-}
-void isr_117(){
-    asm volatile("iretq");
-}
-void isr_118(){
-    asm volatile("iretq");
-}
-void isr_119(){
-    asm volatile("iretq");
-}
-void isr_120(){
-    asm volatile("iretq");
-}
-void isr_121(){
-    asm volatile("iretq");
-}
-void isr_122(){
-    asm volatile("iretq");
-}
-void isr_123(){
-    asm volatile("iretq");
-}
-void isr_124(){
-    asm volatile("iretq");
-}
-void isr_125(){
-    asm volatile("iretq");
-}
-void isr_126(){
-    asm volatile("iretq");
-}
-void isr_127(){
-    asm volatile("iretq");
-}
-void isr_128(){
-    asm volatile("iretq");
-}
-void isr_129(){
-    asm volatile("iretq");
-}
-void isr_130(){
-    asm volatile("iretq");
-}
-void isr_131(){
-    asm volatile("iretq");
-}
-void isr_132(){
-    asm volatile("iretq");
-}
-void isr_133(){
-    asm volatile("iretq");
-}
-void isr_134(){
-    asm volatile("iretq");
-}
-void isr_135(){
-    asm volatile("iretq");
-}
-void isr_136(){
-    asm volatile("iretq");
-}
-void isr_137(){
-    asm volatile("iretq");
-}
-void isr_138(){
-    asm volatile("iretq");
-}
-void isr_139(){
-    asm volatile("iretq");
-}
-void isr_140(){
-    asm volatile("iretq");
-}
-void isr_141(){
-    asm volatile("iretq");
-}
-void isr_142(){
-    asm volatile("iretq");
-}
-void isr_143(){
-    asm volatile("iretq");
-}
-void isr_144(){
-    asm volatile("iretq");
-}
-void isr_145(){
-    asm volatile("iretq");
-}
-void isr_146(){
-    asm volatile("iretq");
-}
-void isr_147(){
-    asm volatile("iretq");
-}
-void isr_148(){
-    asm volatile("iretq");
-}
-void isr_149(){
-    asm volatile("iretq");
-}
-void isr_150(){
-    asm volatile("iretq");
-}
-void isr_151(){
-    asm volatile("iretq");
-}
-void isr_152(){
-    asm volatile("iretq");
-}
-void isr_153(){
-    asm volatile("iretq");
-}
-void isr_154(){
-    asm volatile("iretq");
-}
-void isr_155(){
-    asm volatile("iretq");
-}
-void isr_156(){
-    asm volatile("iretq");
-}
-void isr_157(){
-    asm volatile("iretq");
-}
-void isr_158(){
-    asm volatile("iretq");
-}
-void isr_159(){
-    asm volatile("iretq");
-}
-void isr_160(){
-    asm volatile("iretq");
-}
-void isr_161(){
-    asm volatile("iretq");
-}
-void isr_162(){
-    asm volatile("iretq");
-}
-void isr_163(){
-    asm volatile("iretq");
-}
-void isr_164(){
-    asm volatile("iretq");
-}
-void isr_165(){
-    asm volatile("iretq");
-}
-void isr_166(){
-    asm volatile("iretq");
-}
-void isr_167(){
-    asm volatile("iretq");
-}
-void isr_168(){
-    asm volatile("iretq");
-}
-void isr_169(){
-    asm volatile("iretq");
-}
-void isr_170(){
-    asm volatile("iretq");
-}
-void isr_171(){
-    asm volatile("iretq");
-}
-void isr_172(){
-    asm volatile("iretq");
-}
-void isr_173(){
-    asm volatile("iretq");
-}
-void isr_174(){
-    asm volatile("iretq");
-}
-void isr_175(){
-    asm volatile("iretq");
-}
-void isr_176(){
-    asm volatile("iretq");
-}
-void isr_177(){
-    asm volatile("iretq");
-}
-void isr_178(){
-    asm volatile("iretq");
-}
-void isr_179(){
-    asm volatile("iretq");
-}
-void isr_180(){
-    asm volatile("iretq");
-}
-void isr_181(){
-    asm volatile("iretq");
-}
-void isr_182(){
-    asm volatile("iretq");
-}
-void isr_183(){
-    asm volatile("iretq");
-}
-void isr_184(){
-    asm volatile("iretq");
-}
-void isr_185(){
-    asm volatile("iretq");
-}
-void isr_186(){
-    asm volatile("iretq");
-}
-void isr_187(){
-    asm volatile("iretq");
-}
-void isr_188(){
-    asm volatile("iretq");
-}
-void isr_189(){
-    asm volatile("iretq");
-}
-void isr_190(){
-    asm volatile("iretq");
-}
-void isr_191(){
-    asm volatile("iretq");
-}
-void isr_192(){
-    asm volatile("iretq");
-}
-void isr_193(){
-    asm volatile("iretq");
-}
-void isr_194(){
-    asm volatile("iretq");
-}
-void isr_195(){
-    asm volatile("iretq");
-}
-void isr_196(){
-    asm volatile("iretq");
-}
-void isr_197(){
-    asm volatile("iretq");
-}
-void isr_198(){
-    asm volatile("iretq");
-}
-void isr_199(){
-    asm volatile("iretq");
-}
-void isr_200(){
-    asm volatile("iretq");
-}
-void isr_201(){
-    asm volatile("iretq");
-}
-void isr_202(){
-    asm volatile("iretq");
-}
-void isr_203(){
-    asm volatile("iretq");
-}
-void isr_204(){
-    asm volatile("iretq");
-}
-void isr_205(){
-    asm volatile("iretq");
-}
-void isr_206(){
-    asm volatile("iretq");
-}
-void isr_207(){
-    asm volatile("iretq");
-}
-void isr_208(){
-    asm volatile("iretq");
-}
-void isr_209(){
-    asm volatile("iretq");
-}
-void isr_210(){
-    asm volatile("iretq");
-}
-void isr_211(){
-    asm volatile("iretq");
-}
-void isr_212(){
-    asm volatile("iretq");
-}
-void isr_213(){
-    asm volatile("iretq");
-}
-void isr_214(){
-    asm volatile("iretq");
-}
-void isr_215(){
-    asm volatile("iretq");
-}
-void isr_216(){
-    asm volatile("iretq");
-}
-void isr_217(){
-    asm volatile("iretq");
-}
-void isr_218(){
-    asm volatile("iretq");
-}
-void isr_219(){
-    asm volatile("iretq");
-}
-void isr_220(){
-    asm volatile("iretq");
-}
-void isr_221(){
-    asm volatile("iretq");
-}
-void isr_222(){
-    asm volatile("iretq");
-}
-void isr_223(){
-    asm volatile("iretq");
-}
-void isr_224(){
-    asm volatile("iretq");
-}
-void isr_225(){
-    asm volatile("iretq");
-}
-void isr_226(){
-    asm volatile("iretq");
-}
-void isr_227(){
-    asm volatile("iretq");
-}
-void isr_228(){
-    asm volatile("iretq");
-}
-void isr_229(){
-    asm volatile("iretq");
-}
-void isr_230(){
-    asm volatile("iretq");
-}
-void isr_231(){
-    asm volatile("iretq");
-}
-void isr_232(){
-    asm volatile("iretq");
-}
-void isr_233(){
-    asm volatile("iretq");
-}
-void isr_234(){
-    asm volatile("iretq");
-}
-void isr_235(){
-    asm volatile("iretq");
-}
-void isr_236(){
-    asm volatile("iretq");
-}
-void isr_237(){
-    asm volatile("iretq");
-}
-void isr_238(){
-    asm volatile("iretq");
-}
-void isr_239(){
-    asm volatile("iretq");
-}
-void isr_240(){
-    asm volatile("iretq");
-}
-void isr_241(){
-    asm volatile("iretq");
-}
-void isr_242(){
-    asm volatile("iretq");
-}
-void isr_243(){
-    asm volatile("iretq");
-}
-void isr_244(){
-    asm volatile("iretq");
-}
-void isr_245(){
-    asm volatile("iretq");
-}
-void isr_246(){
-    asm volatile("iretq");
-}
-void isr_247(){
-    asm volatile("iretq");
-}
-void isr_248(){
-    asm volatile("iretq");
-}
-void isr_249(){
-    asm volatile("iretq");
-}
-void isr_250(){
-    asm volatile("iretq");
-}
-void isr_251(){
-    asm volatile("iretq");
-}
-void isr_252(){
-    asm volatile("iretq");
-}
-void isr_253(){
-    asm volatile("iretq");
-}
-void isr_254(){
-    asm volatile("iretq");
-}
-void isr_255(){
-    asm volatile("iretq");
-}
-
-
-
-
-
-
-
 

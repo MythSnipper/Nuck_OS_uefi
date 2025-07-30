@@ -9,6 +9,8 @@
 #define FONT_COLOR EFI_TEXT_ATTR(EFI_WHITE, EFI_MAGENTA)
 #define FONT_COLOR_SELECTED EFI_TEXT_ATTR(EFI_WHITE, EFI_CYAN)
 
+
+//OTHER COLOR CHOICES
 /*
 #define BACKGROUND_COLOR EFI_TEXT_ATTR(EFI_BLACK, EFI_BLACK)
 #define FONT_COLOR EFI_TEXT_ATTR(EFI_GREEN, EFI_BLACK)
@@ -40,13 +42,15 @@ typedef struct{
     EFI_PHYSICAL_ADDRESS               kernelStack;
     uint64_t                           kernelStackSize;
     KERNEL_HEAP*                       heap;
-    EFI_PHYSICAL_ADDRESS               badApple;
-    EFI_PHYSICAL_ADDRESS               nuckOSLogo;
-    EFI_PHYSICAL_ADDRESS               pointerIcon;
+    EFI_PHYSICAL_ADDRESS*              resource_addrs;
 } KERNEL_CONTEXT_TABLE;
 
+
+void crashout(EFI_SYSTEM_TABLE* ST, wchar_t* error, EFI_STATUS code);
+void earlyDisplaySetting();
 void refreshEntries(EFI_SYSTEM_TABLE* ST, wchar_t* menuEntries[], UINTN menuEntriesCount, UINTN selectedEntryIndex, UINTN startColumn, UINTN startRow);
 EFI_PHYSICAL_ADDRESS loadFile(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename);
+EFI_PHYSICAL_ADDRESS loadFileAtAddr(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename, EFI_PHYSICAL_ADDRESS addr);
 void closeFile(EFI_FILE_PROTOCOL* file);
 UINT64 getFileSize(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* file, wchar_t* filename);
 EFI_FILE_PROTOCOL* openFile(EFI_FILE_PROTOCOL* volume, CHAR16* filename);

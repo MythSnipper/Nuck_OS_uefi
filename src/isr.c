@@ -1,0 +1,771 @@
+#include "../include/isr.h"
+
+
+__attribute__((interrupt)) void isr_0(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_1(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_2(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_3(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_4(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_5(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_6(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_7(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_8(struct interrupt_frame* frame, uint64_t error_code){
+
+}
+__attribute__((interrupt)) void isr_9(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_10(struct interrupt_frame* frame, uint64_t error_code){
+
+}
+__attribute__((interrupt)) void isr_11(struct interrupt_frame* frame, uint64_t error_code){
+
+}
+__attribute__((interrupt)) void isr_12(struct interrupt_frame* frame, uint64_t error_code){
+
+}
+__attribute__((interrupt)) void isr_13(struct interrupt_frame* frame, uint64_t error_code){
+
+}
+__attribute__((interrupt)) void isr_14(struct interrupt_frame* frame, uint64_t error_code){
+
+}
+__attribute__((interrupt)) void isr_15(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_16(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_17(struct interrupt_frame* frame, uint64_t error_code){
+
+}
+__attribute__((interrupt)) void isr_18(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_19(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_20(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_21(struct interrupt_frame* frame, uint64_t error_code){
+
+}
+__attribute__((interrupt)) void isr_22(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_23(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_24(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_25(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_26(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_27(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_28(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_29(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_30(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_31(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_32(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_33(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_34(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_35(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_36(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_37(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_38(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_39(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_40(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_41(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_42(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_43(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_44(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_45(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_46(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_47(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_48(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_49(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_50(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_51(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_52(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_53(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_54(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_55(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_56(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_57(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_58(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_59(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_60(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_61(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_62(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_63(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_64(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_65(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_66(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_67(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_68(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_69(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_70(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_71(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_72(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_73(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_74(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_75(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_76(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_77(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_78(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_79(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_80(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_81(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_82(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_83(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_84(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_85(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_86(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_87(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_88(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_89(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_90(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_91(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_92(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_93(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_94(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_95(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_96(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_97(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_98(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_99(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_100(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_101(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_102(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_103(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_104(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_105(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_106(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_107(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_108(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_109(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_110(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_111(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_112(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_113(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_114(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_115(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_116(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_117(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_118(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_119(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_120(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_121(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_122(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_123(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_124(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_125(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_126(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_127(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_128(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_129(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_130(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_131(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_132(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_133(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_134(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_135(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_136(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_137(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_138(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_139(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_140(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_141(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_142(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_143(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_144(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_145(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_146(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_147(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_148(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_149(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_150(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_151(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_152(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_153(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_154(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_155(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_156(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_157(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_158(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_159(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_160(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_161(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_162(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_163(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_164(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_165(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_166(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_167(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_168(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_169(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_170(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_171(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_172(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_173(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_174(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_175(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_176(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_177(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_178(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_179(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_180(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_181(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_182(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_183(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_184(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_185(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_186(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_187(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_188(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_189(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_190(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_191(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_192(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_193(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_194(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_195(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_196(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_197(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_198(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_199(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_200(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_201(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_202(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_203(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_204(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_205(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_206(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_207(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_208(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_209(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_210(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_211(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_212(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_213(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_214(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_215(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_216(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_217(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_218(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_219(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_220(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_221(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_222(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_223(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_224(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_225(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_226(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_227(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_228(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_229(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_230(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_231(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_232(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_233(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_234(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_235(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_236(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_237(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_238(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_239(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_240(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_241(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_242(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_243(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_244(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_245(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_246(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_247(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_248(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_249(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_250(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_251(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_252(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_253(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_254(struct interrupt_frame* frame){
+
+}
+__attribute__((interrupt)) void isr_255(struct interrupt_frame* frame){
+
+}

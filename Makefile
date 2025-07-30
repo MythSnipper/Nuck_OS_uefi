@@ -14,11 +14,14 @@ LD = ld
 OCP = objcopy
 KERNEL_CC = x86_64-elf-gcc
 KERNEL_LD = x86_64-elf-ld
+KERNEL_OCP = x86_64-elf-objcopy
 AS = nasm
 
 CFLAGS =\
 -Wall \
 -Wextra \
+-Wno-unused-parameter \
+-Wno-unused-variable \
 -Ignu-efi/inc \
 -fpic \
 -ffreestanding \
@@ -53,11 +56,11 @@ OCPFLAGS =\
 --target efi-app-x86_64 \
 --subsystem=10
 
-
-
 KERNEL_CFLAGS =\
 -Wall \
 -Wextra \
+-Wno-unused-parameter \
+-Wno-unused-variable \
 -ffreestanding \
 -fno-stack-protector \
 -fpie \
@@ -68,10 +71,11 @@ KERNEL_CFLAGS =\
 -O0
 
 KERNEL_LDFLAGS =\
+-T src/kernel.ld \
 -nostdlib \
--e kernel_main \
---oformat binary
 
+KERNEL_OCPFLAGS =\
+-O binary
 
 all: clean build copy-usbroot copydisk qemu
 
@@ -85,16 +89,20 @@ build:
 
 	$(CC) $(CFLAGS) -c src/nuckboot.c -o build/nuckboot.o
 	$(LD) $(LDFLAGS) build/nuckboot.o -o build/nuckboot.so  $(LDFLAGS_L)
-
 	$(OCP) $(OCPFLAGS) build/nuckboot.so build/nuckboot.efi
 
 	#kernel
 	$(KERNEL_CC) $(KERNEL_CFLAGS) -c src/kernel.c -o build/kernel.o
+	$(KERNEL_CC) $(KERNEL_CFLAGS) -mgeneral-regs-only -c src/isr.c -o build/isr.o
 
-	#link kernel with kernel entry
+	#link kernel as ELF64 object
 	$(KERNEL_LD) $(KERNEL_LDFLAGS) \
+	-o build/kernel-full.o \
 	build/kernel.o \
-	-o build/kernel-full.bin
+	build/isr.o \
+
+	#objcopy to flat binary
+	$(KERNEL_OCP) $(KERNEL_OCPFLAGS) build/kernel-full.o build/kernel-full.bin
 
 #copy code and data to usbroot
 copy-usbroot:
