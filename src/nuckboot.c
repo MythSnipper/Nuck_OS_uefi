@@ -760,16 +760,16 @@ void print_memory_map(EFI_SYSTEM_TABLE* ST, UINTN memory_map_size, EFI_MEMORY_DE
             }
             Print(L" ");
             //reset color
-            status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
+            status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
             if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
             Print(L"%s ", type_arr[MM->Type]);
         }
         else{
-            status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_MAGENTA, EFI_MAGENTA));
+            status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, BACKGROUND_COLOR);
             if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
             Print(L" ");
             //reset color
-            status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK));
+            status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
             if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
             Print(L"0x%x ", MM->Type);
         }
