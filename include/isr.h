@@ -2,8 +2,7 @@
 #define ISR_H
 
 #include "../include/nuckdef.h"
-#include <efi.h>
-#include <efilib.h>
+
 
 struct interrupt_frame {
     uint64_t rip;

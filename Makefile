@@ -6,8 +6,15 @@ EFI_PART_SIZE = 2G#MiB
 MAIN_PART = $(DEVICE)2
 
 #iso image building shenanigans
-IMAGE_SIZE = 2048#in MiB
+IMAGE_SIZE = 2048 #size in MiB
 IMAGE_NAME = nuck_os.iso
+
+#uefi for qemu
+QEMU_UEFI_CODE = OVMF_CODE.fd
+QEMU_UEFI_VARS = OVMF_VARS.fd
+
+
+
 
 CC = gcc
 LD = ld
@@ -56,9 +63,12 @@ OCPFLAGS =\
 --target efi-app-x86_64 \
 --subsystem=10
 
+
+
 KERNEL_CFLAGS =\
 -Wall \
 -Wextra \
+-Wframe-larger-than=1024 \
 -Wno-unused-parameter \
 -Wno-unused-variable \
 -ffreestanding \
@@ -77,29 +87,39 @@ KERNEL_LDFLAGS =\
 KERNEL_OCPFLAGS =\
 -O binary
 
+KERNEL_OBJS =\
+build/kernel_entry.o \
+build/kernel.o \
+build/isr.o \
+build/ps2.o
+
+
 all: clean build copy-usbroot copydisk qemu
 
 clean:
-	sudo rm -rf build/*
-	sudo rm -rf usbroot/*
+	rm -rf build/*
+	rm -rf usbroot/*
 
 #build code into build directory
 build:
 	mkdir -p usbroot/EFI/BOOT/
 
+	#bootloader
 	$(CC) $(CFLAGS) -c src/nuckboot.c -o build/nuckboot.o
 	$(LD) $(LDFLAGS) build/nuckboot.o -o build/nuckboot.so  $(LDFLAGS_L)
 	$(OCP) $(OCPFLAGS) build/nuckboot.so build/nuckboot.efi
 
 	#kernel
+	nasm -f elf64 src/entry.asm -o build/kernel_entry.o
 	$(KERNEL_CC) $(KERNEL_CFLAGS) -c src/kernel.c -o build/kernel.o
 	$(KERNEL_CC) $(KERNEL_CFLAGS) -mgeneral-regs-only -c src/isr.c -o build/isr.o
+	$(KERNEL_CC) $(KERNEL_CFLAGS) -c src/ps2.c -o build/ps2.o
+
 
 	#link kernel as ELF64 object
 	$(KERNEL_LD) $(KERNEL_LDFLAGS) \
 	-o build/kernel-full.o \
-	build/kernel.o \
-	build/isr.o \
+	$(KERNEL_OBJS)
 
 	#objcopy to flat binary
 	$(KERNEL_OCP) $(KERNEL_OCPFLAGS) build/kernel-full.o build/kernel-full.bin
@@ -126,10 +146,10 @@ disk:
 	echo -e "y\n" | sudo mkfs.ext2 $(MAIN_PART)
 	sudo sync
 
-#build iso image
+#build iso image(don't do)
 img:
-	sudo rm -rf build/*.iso
-	sudo dd if=/dev/zero of=build/$(IMAGE_NAME) bs=1MiB count=$(IMAGE_SIZE) status=progress
+	rm -rf build/*.iso
+	dd if=/dev/zero of=build/$(IMAGE_NAME) bs=1MiB count=$(IMAGE_SIZE) status=progress
 
 	LOOP_DEV=$$(sudo losetup -f --show build/$(IMAGE_NAME)); \
 	echo -e "g\nn\n\n\n+${EFI_PART_SIZE}\nt\n1\nn\n\n\n\nt\n2\n222\nw" | sudo fdisk $$LOOP_DEV; \
@@ -137,7 +157,7 @@ img:
 	sudo losetup -d $$LOOP_DEV; \
 	\
 	LOOP_DEV=$$(sudo losetup -f --show -P build/$(IMAGE_NAME)); \
-	sudo lsblk; \
+	lsblk; \
 	sudo mkfs.vfat -F 32 -n "EFI System" -s 16 -v $${LOOP_DEV}p1; \
 	echo -e "y\n" | sudo mkfs.ext2 $${LOOP_DEV}p2; \
 	sudo sync; \
@@ -181,8 +201,8 @@ qemu:
 	-enable-kvm \
 	-m 8192 \
 	-net none \
-	-drive if=pflash,format=raw,unit=0,file=ovmf/OVMF_CODE-pure-efi.fd,readonly=on \
-	-drive if=pflash,format=raw,unit=1,file=ovmf/OVMF_VARS-pure-efi.fd \
+	-drive if=pflash,format=raw,unit=0,file=ovmf/temp/$(QEMU_UEFI_CODE),readonly=on \
+	-drive if=pflash,format=raw,unit=1,file=ovmf/temp/$(QEMU_UEFI_VARS) \
 	-usb -device usb-storage,drive=nuckusb \
     -drive file=$(DEVICE),if=none,format=raw,id=nuckusb
 
@@ -193,11 +213,15 @@ qemu-slow:
 	-icount shift=10,sleep=on \
 	-m 8192 \
 	-net none \
-	-drive if=pflash,format=raw,unit=0,file=ovmf/OVMF_CODE-pure-efi.fd,readonly=on \
-	-drive if=pflash,format=raw,unit=1,file=ovmf/OVMF_VARS-pure-efi.fd \
+	-drive if=pflash,format=raw,unit=0,file=ovmf/temp/$(QEMU_UEFI_CODE),readonly=on \
+	-drive if=pflash,format=raw,unit=1,file=ovmf/temp/$(QEMU_UEFI_VARS) \
 	-usb -device usb-storage,drive=nuckusb \
     -drive file=$(DEVICE),if=none,format=raw,id=nuckusb
 
+qemu-refresh:
+	rm ovmf/$(QEMU_UEFI_CODE) ovmf/$(QEMU_UEFI_VARS)
+	cp ovmf/$(QEMU_UEFI_CODE) ovmf/temp/
+	cp ovmf/$(QEMU_UEFI_VARS) ovmf/temp/
 
 
 

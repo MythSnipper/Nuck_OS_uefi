@@ -1,12 +1,33 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-#include "../include/nuckdef.h"
 #include <efi.h>
 #include <efilib.h>
 
 #include "../include/isr.h"
+#include "../include/ps2.h"
+#include "../include/port_io.h"
 
+
+
+
+
+
+
+
+typedef struct __attribute__((packed)) {
+    uint16_t limit_low;
+    uint16_t base_low;
+    uint8_t  base_mid;
+    uint8_t  access;
+    uint8_t  limit__flags;
+    uint8_t  base_high;
+} GDT_Entry;
+
+typedef struct __attribute__((packed)) {
+    uint16_t size; //gdt size - 1
+    uint64_t offset; //gdt start
+} GDT_Descriptor;
 
 typedef struct __attribute__((packed)) {
     uint16_t offset_low;
@@ -23,19 +44,7 @@ typedef struct __attribute__((packed)) {
     uint64_t offset; //idt start
 } IDT_Descriptor;
 
-typedef struct __attribute__((packed)) {
-    uint16_t limit_low;
-    uint16_t base_low;
-    uint8_t  base_mid;
-    uint8_t  access;
-    uint8_t  limit__flags;
-    uint8_t  base_high;
-} GDT_Entry;
 
-typedef struct __attribute__((packed)) {
-    uint16_t size; //gdt size - 1
-    uint64_t offset; //gdt start
-} GDT_Descriptor;
 
 typedef struct{
     uint8_t* font;
@@ -52,7 +61,7 @@ typedef struct{
     uint8_t  useAbsolutePosition;
 } KERNEL_TEXT_OUTPUT;
 
-typedef struct __attribute__((aligned(32))){
+typedef struct{
     uint8_t* addr;
     uint32_t format;
     uint32_t width;
@@ -61,17 +70,20 @@ typedef struct __attribute__((aligned(32))){
     uint32_t frameCounter;
 } KERNEL_NVIDEO;
 
-typedef struct{
-    uint8_t* map;
-    uint8_t* heap;
-} KERNEL_HEAP;
 
 typedef struct{
-    CHAR16*                            FirmwareVendor;
+    uint8_t*                           bitmap;
+    uint8_t*                           heap;
+    uint64_t                           heap_size_pages;
+} KERNEL_PMM_RANGE;
+
+typedef struct{
+    int16_t*                           FirmwareVendor;
     uint32_t                           FirmwareRevision;
     EFI_RUNTIME_SERVICES*              RuntimeServices;
     EFI_MEMORY_DESCRIPTOR*             MemoryMap;
     uint64_t                           MemoryMapSize;
+    uint64_t                           MemoryMapSizePages;
     uint64_t                           MemoryMapDescriptorSize;
     EFI_CONFIGURATION_TABLE*           ConfigTable;
     uint64_t                           ConfigTableEntriesCount;
@@ -79,17 +91,27 @@ typedef struct{
     EFI_PHYSICAL_ADDRESS               fb; //backbuffer in bootloader, frontbuffer in kernel
     EFI_PHYSICAL_ADDRESS               kernelStack;
     uint64_t                           kernelStackSize;
-    KERNEL_HEAP*                       heap;
-    EFI_PHYSICAL_ADDRESS*              resource_addrs;
+    //KERNEL_HEAP*                       heap;
+    EFI_PHYSICAL_ADDRESS               resource_addrs[4];
 } KERNEL_CONTEXT_TABLE;
 
+
+
+
+/*
 typedef struct{
-    KERNEL_HEAP*  heap;
-    uint64_t*     freeListStart;
-    uint64_t*     freeListEnd;
+    KERNEL_PMM_RANGE*  heap;
+    uint64_t*          freeListStart;
+    uint64_t*          freeListEnd;
 } KERNEL_SUBPAGE_ALLOCATOR;
+*/
+
 
 typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;
+
+
+void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con);
+
 
 //config table related
 void* getConfigTable(EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries, uint8_t tableindex);
@@ -100,15 +122,6 @@ uint8_t cmpGUID(EFI_GUID* guid1, EFI_GUID* guid2);
 
 typedef void (*Kernel_entry)(KERNEL_CONTEXT_TABLE*);
 
-//PS/2
-#define PS2_DATA 0x60
-#define PS2_STATUS 0x64
-static inline uint8_t PS2_read(uint8_t port);
-static inline void PS2_command(uint8_t command);
-static inline void PS2_write(uint8_t data, bool isMouse);
-uint8_t PS2_mouse_init();
-uint8_t PS2_mouse_set_sample_rate(uint8_t rate);
-uint8_t PS2_poll(uint8_t* scancode, int8_t* dx, int8_t* dy, uint8_t* lrm);
 
 //PIC functions
 static inline void PIC_disable();
@@ -117,6 +130,7 @@ void setIDTEntry(IDT_Entry* entry, uint16_t segment, uint64_t offset, uint8_t IS
 void setGDTEntry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags);
 void triple_fault();
 
+/*
 //dynamic memory allocation functions
 void subpage_alloc_init(KERNEL_SUBPAGE_ALLOCATOR* alloc);
 void* subpage_alloc(KERNEL_SUBPAGE_ALLOCATOR* alloc);
@@ -127,6 +141,8 @@ void heap_init(KERNEL_HEAP* heap);
 void* heap_alloc(KERNEL_HEAP* heap, uint64_t pages);
 void heap_free(KERNEL_HEAP* heap, void* addr, uint64_t pages);
 void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut);
+*/
+
 
 //graphical functions
 void NVIDEOParseHeader(KERNEL_NVIDEO* video, uint8_t* addr);
@@ -147,13 +163,6 @@ void GOPPutPixel(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t color);
 void* memcpy(void* source, void* dest, uint64_t size);
 static inline uint32_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 static inline uint32_t hex(uint32_t hex);
-static inline void outb(uint16_t port, uint8_t value);
-static inline void outw(uint16_t port, uint16_t value);
-static inline void outl(uint16_t port, uint32_t value);
-static inline uint8_t inb(uint16_t port);
-static inline uint16_t inw(uint16_t port);
-static inline uint32_t inl(uint16_t port);
-static inline void io_wait();
 static inline void cpuid(int code, uint32_t* a, uint32_t* d);
 void cpuid_get_vendor(uint8_t* CPUVendor);
 uint64_t rdtsc();

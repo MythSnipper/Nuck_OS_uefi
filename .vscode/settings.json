@@ -10,6 +10,8 @@
         "string": "c",
         "cstdint": "c",
         "compare": "c",
-        "format": "c"
-    }
+        "format": "c",
+        "efi.h": "c"
+    },
+    "makefile.configureOnOpen": true
 }

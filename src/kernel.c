@@ -1,11 +1,21 @@
 #include "../include/kernel.h"
 
-__attribute__((section(".text.boot")))
-void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
-    //set GDT entries
-    __attribute__((aligned(0x10)))static GDT_Entry GDT[3];
-    static GDT_Descriptor GDTPtr;
 
+//global vars
+KERNEL_CONTEXT_TABLE* global_ctx;
+
+__attribute__((aligned(0x10)))
+GDT_Entry GDT[3];
+GDT_Descriptor GDTPtr;
+__attribute__((aligned(0x10)))
+IDT_Entry IDT[256];
+IDT_Descriptor IDTPtr;
+
+void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
+    //make ctx global
+    global_ctx = ctx;
+
+    //set GDT entries
     GDTPtr.size = sizeof(GDT)-1;
     GDTPtr.offset = (uint64_t)&GDT;
 
@@ -31,8 +41,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         "mov fs, ax\n"
         "mov gs, ax\n"
         "mov ss, ax\n"
-        "jmp .gdt_loaded_yiper\n"
-        ".gdt_loaded_yiper:\n"
         ".att_syntax\n"
         :
         : [gdt] "r"(&GDTPtr)
@@ -43,9 +51,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     uint8_t DATA_SEG = sizeof(GDT[0]) * 2;
 
     //set IDT entries
-    __attribute__((aligned(0x10)))static IDT_Entry IDT[256];
-    static IDT_Descriptor IDTPtr;
-
     IDTPtr.size = sizeof(IDT)-1;
     IDTPtr.offset = (uint64_t)&IDT;
 
@@ -328,12 +333,11 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     );
     //disable PIC
     PIC_disable();
-    
 
     uint8_t versionMajor = 1;
     uint8_t versionMinor = 3;
     //font
-    uint8_t VGAfont[] = {
+    static uint8_t VGAfont[] = {
         //32
         0b00000000,
         0b00000000,
@@ -1964,7 +1968,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
     KERNEL_TEXT_OUTPUT title = {VGAfont, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
     KERNEL_TEXT_OUTPUT ConOut = {VGAfont, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
-    KERNEL_TEXT_OUTPUT HeapOut = {VGAfont, 8, 16, 1, 1, 0, 0, 0, 0, hex(0xFF10F0), hex(0x000000), false};
 
     //NVIDEO RESOURCES
     KERNEL_NVIDEO bad_apple;
@@ -1977,6 +1980,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     NVIDEOParseHeader(&pointer_icon, (uint8_t*) ctx->resource_addrs[3]);
 
     //MEM ALLOC TESTS
+    /*
     heap_init(ctx->heap);   
     void* testPtr = heap_alloc(ctx->heap, 2);
     void* testPtr2 = heap_alloc(ctx->heap, 1);
@@ -1988,6 +1992,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     void* subPtr = subpage_alloc(&alloc);
     void* subPtr2 = subpage_alloc(&alloc);
     heap_free(ctx->heap, testPtr, 1);
+
+    */
 
     //setup input devices
     uint8_t scancode;
@@ -2002,11 +2008,14 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     int32_t pointerX = 0;
     int32_t pointerY = 0;
 
+
+    print_memory_map(ctx, &ConOut);
+
+
     while(true){
         //display
         title = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
         ConOut = (KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
-        HeapOut =(KERNEL_TEXT_OUTPUT){VGAfont, 8, 16, 1, 1, 0, 0, 0, 0, hex(0xFF10F0), hex(0x000000), false};
         //clear screen
         GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
         /*
@@ -2029,8 +2038,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         printf(ctx->GOP, &ConOut, "CPU Vendor: %s\r\n", CODE_SEG, DATA_SEG, &CPUVendor);
         printf(ctx->GOP, &ConOut, "Video resolution: %dx%d / format %d / frame %d/%d\r\n", bad_apple.width, bad_apple.height, bad_apple.format, bad_apple.frameCounter+1, bad_apple.frameCount);
 
-        printf(ctx->GOP, &title, "Welcome to \r\n");
-        title.frontColor = 0xE50000;title.backColor = 0x000000;
         printf(ctx->GOP, &title, "N");
         title.frontColor = 0xFF8D00;title.backColor = 0x000000;
         printf(ctx->GOP, &title, "u");
@@ -2048,19 +2055,17 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
         printf(ctx->GOP, &title, "\r\n Version %u.%u!\r\n", versionMajor, versionMinor);
 
+        /*
         heap_display(ctx->heap, ctx->GOP, &HeapOut);
         printf(ctx->GOP, &ConOut, "\r\nheap page allocator: \r\n%lx, +32768 pages, %ld MB\r\n", ctx->heap->heap, 32768*4*1024/1024/1024);
         printf(ctx->GOP, &ConOut, "\r\n\nsubpage allocator: \r\n%lx to %lx\r\n", alloc.freeListStart, alloc.freeListEnd);
         printf(ctx->GOP, &ConOut, "1st subpage: %lx\r\n", subPtr);
         printf(ctx->GOP, &ConOut, "2nd subpage: %lx\r\n", subPtr2);
-        
-        ConOut.backColor = hex(0x00807F);
-        printf(ctx->GOP, &ConOut, "\r\n\n                        ");
-        ConOut.backColor = hex(0x000000);
-        printf(ctx->GOP, &ConOut, "(Logo designed by Serafim)\r\n");
+        */
 
         viewConfigTables(ctx->GOP, &ConOut, ctx->ConfigTable, ctx->ConfigTableEntriesCount);
 
+        printf(ctx->GOP, &ConOut, "size of stuff: %u + %u\r\n", sizeof(*ctx), ctx->MemoryMapSize);
 
         //logo
         GOPDrawImage(ctx->GOP, ctx->GOP->Info->HorizontalResolution - nuckos_logo.width - 10, ctx->GOP->Info->VerticalResolution - nuckos_logo.height - 10, &nuckos_logo);
@@ -2109,10 +2114,113 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     while(true);
 }
 
+//NEW physical memory manager related functions
+void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con){
+    uint64_t memory_map_size = ctx->MemoryMapSize;
+    uint64_t memory_map_size_pages = ctx->MemoryMapSizePages;
+    uint64_t memory_map_descriptor_size = ctx->MemoryMapDescriptorSize;
+
+    char* type_arr[] = {
+    "EfiReservedMemoryType",
+    "EfiLoaderCode", //yes
+    "EfiLoaderData", //for safety best to avoid - might contain memory map
+    "EfiBootServicesCode", //yes
+    "EfiBootServicesData", //yes
+    "EfiRuntimeServicesCode",
+    "EfiRuntimeServicesData",
+    "EfiConventionalMemory", //yes
+    "EfiUnusableMemory",
+    "EfiACPIReclaimMemory",
+    "EfiACPIMemoryNVS",
+    "Efimemory_mappedIO",
+    "Efimemory_mappedIOPortSpace",
+    "EfiPalCode",
+    "EfiPersistentMemory", //yes
+    "EfiUnacceptedMemoryType",
+    "EfiMaxMemoryType"
+    };
+
+    uint32_t entries = memory_map_size / memory_map_descriptor_size;
+    EFI_MEMORY_DESCRIPTOR* MM = ctx->MemoryMap;
+    
+    //size of conventional memory in number of 4 KiB pages
+    uint64_t totalMapped = 0;
+    uint64_t totalUsable = 0;
+
+    uint32_t oldColor = Con->frontColor;
+    uint32_t oldBackColor = Con->backColor;
+
+    //print other info
+    printf(ctx->GOP, Con, "Memory Map Size: %lu\r\nSize of each entry: %lu\r\nTotal entries: %lu\r\n", memory_map_size, memory_map_descriptor_size, entries);
+    for(uint32_t i = 0;i < entries;i++){
+        printf(ctx->GOP, Con, "#%u - ", i+1);
+        
+        if(MM->Type < sizeof(type_arr)/sizeof(type_arr[0])){
+            //add to mem size counters
+            totalMapped += MM->NumberOfPages;
+            if(MM->Type == EfiConventionalMemory || MM->Type == EfiPersistentMemory){
+                Con->frontColor = hex(0x00FF00);
+                Con->backColor = hex(0x00FF00); //green
+                totalUsable += MM->NumberOfPages;
+            }
+            else{
+                Con->frontColor = hex(0xFF0000);
+                Con->backColor = hex(0xFF0000); //red
+            }
+            printf(ctx->GOP, Con, " ");
+            //reset color
+            Con->frontColor = oldColor;
+            Con->backColor = oldBackColor;
+            printf(ctx->GOP, Con, "%s ", type_arr[MM->Type]);
+        }
+        else{
+            Con->frontColor = hex(0xFFFF00);
+            Con->backColor = hex(0xFFFF00); //yellow
+            printf(ctx->GOP, Con, " ");
+            //reset color
+            Con->frontColor = oldColor;
+            Con->backColor = oldBackColor;
+            printf(ctx->GOP, Con, "0x%x ", MM->Type);
+        }
+        printf(ctx->GOP, Con, " ");
+
+        printf(ctx->GOP, Con, "Range:0x%lx - 0x%lx ", MM->PhysicalStart, (MM->PhysicalStart + (MM->NumberOfPages*4096) - 1));
+        if(MM->Attribute & 0x1)printf(ctx->GOP, Con, "UC ");
+        if(MM->Attribute & 0x2)printf(ctx->GOP, Con, "WC ");
+        if(MM->Attribute & 0x4)printf(ctx->GOP, Con, "WT ");
+        if(MM->Attribute & 0x8)printf(ctx->GOP, Con, "WB ");
+        if(MM->Attribute & 0x10)printf(ctx->GOP, Con, "UCE ");
+        if(MM->Attribute & 0x1000)printf(ctx->GOP, Con, "WP ");
+        if(MM->Attribute & 0x2000)printf(ctx->GOP, Con, "RP ");
+        if(MM->Attribute & 0x4000)printf(ctx->GOP, Con, "XP ");
+        if(MM->Attribute & 0x8000)printf(ctx->GOP, Con, "NV ");
+        if(MM->Attribute & 0x10000)printf(ctx->GOP, Con, "MORE_RELIABLE ");
+        if(MM->Attribute & 0x20000)printf(ctx->GOP, Con, "RO ");
+        if(MM->Attribute & 0x40000)printf(ctx->GOP, Con, "SP ");
+        if(MM->Attribute & 0x80000)printf(ctx->GOP, Con, "CRYPTO ");
+        if(MM->Attribute & 0x8000000000000000)printf(ctx->GOP, Con, "RUNTIME ");
+        if(MM->Attribute & 0x4000000000000000)printf(ctx->GOP, Con, "ISA_VALID ");
+        if(MM->Attribute & 0x0FFFF00000000000)printf(ctx->GOP, Con, "ISA_MASK ");
+
+        printf(ctx->GOP, Con, "\r\n");
+        //go to next one
+        MM = (EFI_MEMORY_DESCRIPTOR*)((uint8_t*)MM + memory_map_descriptor_size);
+        memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
+        //break here
+        for(uint32_t i=0;i<40000000;i++);
+    }
+    printf(ctx->GOP, Con, "Total mapped memory: %d pages/%f GB/%f GiB\r\n", totalMapped, totalMapped/250000.0f, totalMapped/262144.0f);
+    printf(ctx->GOP, Con, "Total usable memory: %d pages/%f GB/%f GiB\r\n", totalUsable, totalUsable/250000.0f, totalUsable/262144.0f);
+}
+
+
+
+
+
 //config table related functions
 void* getConfigTable(EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries, uint8_t tableindex){
 
-    EFI_GUID GUIDTableKeys[] = {
+    static EFI_GUID GUIDTableKeys[] = {
         {0x8868e871,0xe4f1,0x11d3,{0xbc,0x22,0x00,0x80,0xc7,0x3c,0x88,0x81}},
         {0xeb9d2d30,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
         {0xeb9d2d32,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
@@ -2163,7 +2271,7 @@ void* getConfigTable(EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries, uint8_
 }
 void viewConfigTables(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* con, EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries){
 
-    EFI_GUID GUIDTableKeys[] = {
+    static EFI_GUID GUIDTableKeys[] = {
         {0x8868e871,0xe4f1,0x11d3,{0xbc,0x22,0x00,0x80,0xc7,0x3c,0x88,0x81}},
         {0xeb9d2d30,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
         {0xeb9d2d32,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
@@ -2245,72 +2353,6 @@ uint8_t cmpGUID(EFI_GUID* guid1, EFI_GUID* guid2){
     return 1;
 }
 
-//PS/2
-#define PS2_DATA 0x60
-#define PS2_STATUS 0x64
-static inline uint8_t PS2_read(uint8_t port){
-    while((inb(PS2_STATUS) & 0x01) == 0);
-    return inb(port);
-}
-static inline void PS2_command(uint8_t command){
-    while(inb(PS2_STATUS) & 0x02);
-    outb(PS2_STATUS, command);
-}
-static inline void PS2_write(uint8_t data, bool isMouse){
-    if(isMouse){
-        PS2_command(0xD4);
-    }
-    //send data
-    while(inb(PS2_STATUS) & 0x02);
-    outb(PS2_DATA, data);
-}
-
-uint8_t PS2_mouse_init() {
-    //enable second ps2 port
-    PS2_command(0xA8);
-
-    //enable data reporting
-    PS2_write(0xF4, 1);
-    //read back ack
-    if(PS2_read(PS2_DATA) != 0xFA){
-        return 1;
-    }
-    return 0;
-}
-uint8_t PS2_mouse_set_sample_rate(uint8_t rate){
-    PS2_write(0xF3, 1); //set sample rate command
-    //read back ack
-    if(PS2_read(PS2_DATA) != 0xFA){
-        return 1;
-    }
-
-    PS2_write(rate, 1);
-    //read back ack
-    if(PS2_read(PS2_DATA) != 0xFA){
-        return 1;
-    }
-    return 0;
-}
-uint8_t PS2_poll(uint8_t* scancode, int8_t* dx, int8_t* dy, uint8_t* lrm){
-    uint8_t status = PS2_read(PS2_STATUS);
-    uint8_t is_mouse = (status & 0x20) ? 1 : 0;
-    if(!is_mouse){ //keyboard
-        *scancode = inb(PS2_DATA);
-    }
-    else{ //mouse
-        uint8_t bytes[3];
-        for(int i = 0; i < 3; i++){
-            bytes[i] = PS2_read(PS2_DATA);
-        }
-        uint8_t state = bytes[0];
-        *lrm = state & 0b111;
-        uint8_t x = bytes[1];
-        *dx = x - ((state << 4) & 0x100);
-        uint8_t y = bytes[2];
-        *dy = -(y - ((state << 3) & 0x100));
-    }
-    return is_mouse;
-}
 
 
 //PIC functions
@@ -2319,6 +2361,7 @@ static inline void PIC_disable(){
     outb(0xA1, 0xff); //mask slave PIC
 }
 
+/*
 //dynamic memory allocation functions
 void subpage_alloc_init(KERNEL_SUBPAGE_ALLOCATOR* alloc){
     alloc->freeListStart = (uint64_t*)heap_alloc(alloc->heap, 1);
@@ -2438,6 +2481,8 @@ void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut){
         }
     }
 }
+*/
+
 
 //GDT/IDT functions, general functions
 void setIDTEntry(IDT_Entry* entry, uint16_t segment, uint64_t offset, uint8_t ISTOffset, uint8_t attributes){
@@ -2822,57 +2867,6 @@ void* memcpy(void* source, void* dest, uint64_t size){
         *d++ = *s++;
     }
     return dest;
-}
-static inline void outb(uint16_t port, uint8_t value){
-    asm volatile (
-        "outb %0, %1"
-        :
-        : "a"(value), "Nd"(port)
-    );
-}
-static inline void outw(uint16_t port, uint16_t value){
-    asm volatile (
-        "outw %0, %1"
-        :
-        : "a"(value), "Nd"(port)
-    );
-}
-static inline void outl(uint16_t port, uint32_t value){
-    asm volatile (
-        "outl %0, %1"
-        :
-        : "a"(value), "Nd"(port)
-    );
-}
-static inline uint8_t inb(uint16_t port){
-    uint8_t ret;
-    asm volatile (
-        "inb %1, %0"
-        : "=a"(ret)
-        : "Nd"(port)
-    );
-    return ret;
-}
-static inline uint16_t inw(uint16_t port){
-    uint16_t ret;
-    asm volatile (
-        "inw %1, %0"
-        : "=a"(ret)
-        : "Nd"(port)
-    );
-    return ret;
-}
-static inline uint32_t inl(uint16_t port){
-    uint32_t ret;
-    asm volatile (
-        "inl %1, %0"
-        : "=a"(ret)
-        : "Nd"(port)
-    );
-    return ret;
-}
-static inline void io_wait(){
-    outb(0x80, 0);
 }
 static inline void cpuid(int code, uint32_t* a, uint32_t* d){
     asm volatile("cpuid" : "=a"(*a), "=d"(*d) : "0"(code) : "ebx", "ecx");
