@@ -71,6 +71,7 @@ typedef struct{
 } KERNEL_NVIDEO;
 
 
+
 typedef struct{
     uint8_t*                           start_addr;
     uint8_t*                           bitmap;
@@ -99,9 +100,10 @@ typedef struct{
     EFI_PHYSICAL_ADDRESS               kernelImageStart;
     uint32_t                           kernelImageSizePages;
 
-    KERNEL_PMM_RANGE*                  kernelPMMRange;
-    EFI_PHYSICAL_ADDRESS               kernel_resource_addrs[4];
+    KERNEL_PMM_RANGE                   kernelPMMRange;
+    EFI_PHYSICAL_ADDRESS               kernel_resource_addrs[3];
 } KERNEL_CONTEXT_TABLE;
+
 
 
 

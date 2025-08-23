@@ -15,9 +15,9 @@
 #define false 0
 #endif
 
-#define BACKGROUND_COLOR EFI_TEXT_ATTR(EFI_MAGENTA, EFI_MAGENTA)
-#define FONT_COLOR EFI_TEXT_ATTR(EFI_WHITE, EFI_MAGENTA)
-#define FONT_COLOR_SELECTED EFI_TEXT_ATTR(EFI_WHITE, EFI_CYAN)
+#define BACKGROUND_COLOR EFI_TEXT_ATTR(EFI_BLACK, EFI_BLACK)
+#define FONT_COLOR EFI_TEXT_ATTR(EFI_GREEN, EFI_BLACK)
+#define FONT_COLOR_SELECTED EFI_TEXT_ATTR(EFI_LIGHTGREEN, EFI_BLACK)
 
 //OTHER COLOR CHOICES
 /*
@@ -60,8 +60,8 @@ typedef struct{
     EFI_PHYSICAL_ADDRESS               kernelImageStart;
     uint32_t                           kernelImageSizePages;
 
-    KERNEL_PMM_RANGE*                  kernelPMMRange;
-    EFI_PHYSICAL_ADDRESS               kernel_resource_addrs[4];
+    KERNEL_PMM_RANGE                   kernelPMMRange;
+    EFI_PHYSICAL_ADDRESS               kernel_resource_addrs[3];
 } KERNEL_CONTEXT_TABLE;
 
 

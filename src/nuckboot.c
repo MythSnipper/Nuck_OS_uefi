@@ -146,14 +146,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     }
                     case 4: {
                         //Boot Nuck OS
-                        //allocate memory for backbuffer
-                        UINTN backbuffer_size = GOP->Mode->Info->PixelsPerScanLine * GOP->Mode->Info->VerticalResolution * 4; //4 bpp
-                        status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderData, GOP->Mode->FrameBufferSize, &backbuffer);
-                        Print(L"backbuffer allocated at address %X!\r\n", backbuffer);
-                        if(EFI_ERROR(status)){
-                            Print(L"Can't allocate %d bytes for video backbuffer\r\n", GOP->Mode->FrameBufferSize);
-                            while(1);
-                        }
 
                         //kernel PMM stuff
                         get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
@@ -171,6 +163,19 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                         }
                         get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
                         get_memory_map_highlow_address(memory_map_size, memory_map, memory_map_descriptor_size, &lowest_usable_range_addr, &highest_usable_range_addr);
+
+
+
+                        //last allocation
+                        //allocate memory for backbuffer
+                        UINTN backbuffer_size = GOP->Mode->Info->PixelsPerScanLine * GOP->Mode->Info->VerticalResolution * 4; //4 bpp
+                        status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderData, GOP->Mode->FrameBufferSize, &backbuffer);
+                        Print(L"backbuffer allocated at address %X!\r\n", backbuffer);
+                        if(EFI_ERROR(status)){
+                            Print(L"Can't allocate %d bytes for video backbuffer\r\n", GOP->Mode->FrameBufferSize);
+                            while(1);
+                        }
+
 
                         Print(L"Say goodbye to UEFI-land!\r\nPress any key to continue...\r\n");
                         while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
@@ -242,50 +247,58 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         }
     }
     exit_boot_services:
-    //get memory map and exit boot services
-    status = uefi_call_wrapper(BS->GetMemoryMap, 5, &memory_map_size, memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
-    uefi_call_wrapper(BS->ExitBootServices, 2, ImageHandle, memory_map_key);
 
     //construct kernel main function to call
     typedef void (*Kernel_entry)(KERNEL_CONTEXT_TABLE*);
     Kernel_entry kernel_main = (void*)loaded_addrs[0];
 
+    //construct information for kernel
 
-    KERNEL_PMM_RANGE kernel_pmm = {
-        (uint8_t*)lowest_usable_range_addr,
-        (uint8_t*)kernel_pmm_bitmap_addr,
-        kernel_pmm_bitmap_size
-    };
     //kernel context table
-    KERNEL_CONTEXT_TABLE ctx = {
-        ST->FirmwareVendor,
-        ST->FirmwareRevision,
-        ST->RuntimeServices,
+    KERNEL_CONTEXT_TABLE* ctx; //pointer pointing to copied context table
+    UINTN ctx_size_bytes = sizeof(KERNEL_CONTEXT_TABLE);
+    UINTN ctx_size_pages = (ctx_size_bytes + 4095)/4096;
 
-        memory_map,
-        memory_map_size,
-        memory_map_size_pages,
-        memory_map_descriptor_size,
-
-        ST->ConfigurationTable,
-        ST->NumberOfTableEntries,
-
-        GOP->Mode,
-        backbuffer,
-
-        kernel_stack,
-        kernel_stack_size,
-
-        loaded_addrs[0],
-        kernel_image_size_pages,
-
-        &kernel_pmm
-
-    };
-    //copy array loaded_addrs into struct
-    for(int i = 0; i < 3; i++){
-        ctx.kernel_resource_addrs[i] = loaded_addrs[i+1];
+    //allocate memory to copy ctx to
+    status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, ctx_size_pages, &ctx);
+    if(EFI_ERROR(status)){
+        Print(L"Can't allocate %d pages for ctx\r\n", ctx_size_pages);
+        while(1);
     }
+
+    ctx->FirmwareVendor = ST->FirmwareVendor;
+    ctx->FirmwareRevision = ST->FirmwareRevision;
+    ctx->RuntimeServices = ST->RuntimeServices;
+
+    ctx->MemoryMap = memory_map;
+    ctx->MemoryMapSizeBytes = memory_map_size;
+    ctx->MemoryMapSizePages = memory_map_size_pages;
+    ctx->MemoryMapDescriptorSize = memory_map_descriptor_size;
+
+    ctx->ConfigTable = ST->ConfigurationTable;
+    ctx->ConfigTableEntriesCount = ST->NumberOfTableEntries;
+
+    ctx->GOP = GOP->Mode;
+    ctx->fb = backbuffer;
+
+    ctx->kernelStack = kernel_stack;
+    ctx->kernelStackSizePages = kernel_stack_size;
+
+    ctx->kernelImageStart = loaded_addrs[0];
+    ctx->kernelImageSizePages = kernel_image_size_pages;
+
+    ctx->kernelPMMRange.start_addr = (uint8_t*)lowest_usable_range_addr;
+    ctx->kernelPMMRange.bitmap = (uint8_t*)kernel_pmm_bitmap_addr;
+    ctx->kernelPMMRange.bitmap_size_pages = kernel_pmm_bitmap_size;
+
+    ctx->kernel_resource_addrs[0] = loaded_addrs[1];
+    ctx->kernel_resource_addrs[1] = loaded_addrs[2];
+    ctx->kernel_resource_addrs[2] = loaded_addrs[3];
+
+    
+    //get memory map and exit boot services
+    status = uefi_call_wrapper(BS->GetMemoryMap, 5, &memory_map_size, memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
+    uefi_call_wrapper(BS->ExitBootServices, 2, ImageHandle, memory_map_key);
 
     //switch to kernel stack and go to start of kernel image
     asm volatile(
@@ -296,7 +309,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         ".att_syntax\n"
         :
         : [stack_top] "r"((uint64_t) kernel_stack),
-        [ctx_ptr] "r"(&ctx),
+        [ctx_ptr] "r"(ctx),
         [kernel_entry] "r"(kernel_main)
     );
 
