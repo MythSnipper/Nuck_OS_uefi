@@ -10,7 +10,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     InitializeLib(ImageHandle, ST); //initialize runtime pointers
     bootloader_start:
     //disable watchdog timer
-    status = uefi_call_wrapper(BS->SetWatchdogTimer, 4, 0, 0x10000, 0, NULL);
+    status = uefi_call_wrapper(BS->SetWatchdogTimer, 4, 0, 0, 0, NULL);
     if(EFI_ERROR(status)) crashout(ST, L"Failed to disable watchdog timer in SetWatchdogTimer", status);
 
     //simple keyboard loop to determine to reset or not to reset the display
@@ -38,12 +38,14 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
 
     EFI_PHYSICAL_ADDRESS backbuffer;  //backbuffer
     EFI_PHYSICAL_ADDRESS kernel_stack; //kernel stack
-    uint64_t kernel_stack_size = 512; //size in pages, 2 MiB stack
+    uint32_t kernel_stack_size = 512; //size in pages, 2 MiB stack
+
+    uint32_t kernel_image_size_pages;
 
     EFI_PHYSICAL_ADDRESS lowest_usable_range_addr;
     EFI_PHYSICAL_ADDRESS highest_usable_range_addr;
     EFI_PHYSICAL_ADDRESS kernel_pmm_bitmap_addr;
-    
+    uint32_t kernel_pmm_bitmap_size;
 
     //DISPLAY MENU data
     UINTN start_column; //starting column and row
@@ -58,7 +60,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         L"View configuration tables",
         L"EFI Shell",
         L"Shutdown",
-        L"Hard reset"
+        L"triple fault"
     };
     UINTN menu_number_of_entries = 10;
     UINTN selected_menu_entry_index = 0;
@@ -131,7 +133,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                         //Auto boot
                     }
                     case 1: {
-                        load_kernel_resources(ST, ImageHandle, &root, loaded_addrs, kernel_stack_size, &kernel_stack);
+                        load_kernel_resources(ST, ImageHandle, &root, loaded_addrs, kernel_stack_size, &kernel_stack, &kernel_image_size_pages);
                         break;
                     }
                     case 2: {
@@ -145,6 +147,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     case 4: {
                         //Boot Nuck OS
                         //allocate memory for backbuffer
+                        UINTN backbuffer_size = GOP->Mode->Info->PixelsPerScanLine * GOP->Mode->Info->VerticalResolution * 4; //4 bpp
                         status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderData, GOP->Mode->FrameBufferSize, &backbuffer);
                         Print(L"backbuffer allocated at address %X!\r\n", backbuffer);
                         if(EFI_ERROR(status)){
@@ -152,12 +155,14 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                             while(1);
                         }
 
+                        //kernel PMM stuff
                         get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
                         get_memory_map_highlow_address(memory_map_size, memory_map, memory_map_descriptor_size, &lowest_usable_range_addr, &highest_usable_range_addr);
-                        //allocate memory for kernel PMM
-                        uint64_t heap_size_pages = (highest_usable_range_addr-lowest_usable_range_addr)/4096;
-                        uint64_t heap_bitmap_size_bytes = (heap_size_pages+7)/8; //1 byte = 8 pages
-                        uint64_t heap_bitmap_size_pages = (heap_bitmap_size_bytes + 4095)/4096; //1 page = 4096 bytes
+                        //allocate memory for kernel PMM range
+                        uint32_t heap_size_pages = (highest_usable_range_addr-lowest_usable_range_addr)/4096;
+                        uint32_t heap_bitmap_size_bytes = (heap_size_pages+7)/8; //1 byte = 8 pages
+                        uint32_t heap_bitmap_size_pages = (heap_bitmap_size_bytes + 4095)/4096; //1 page = 4096 bytes
+                        kernel_pmm_bitmap_size = heap_bitmap_size_pages;
                         status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, heap_bitmap_size_pages, &kernel_pmm_bitmap_addr);
                         Print(L"pmm bitmap allocated at address %X!\r\nheap size: %d, heap bitmap size: %d bytes %d pages\r\n", kernel_pmm_bitmap_addr, heap_size_pages, heap_bitmap_size_bytes, heap_bitmap_size_pages);
                         if(EFI_ERROR(status)){
@@ -237,37 +242,49 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         }
     }
     exit_boot_services:
-    //get memory map
+    //get memory map and exit boot services
     status = uefi_call_wrapper(BS->GetMemoryMap, 5, &memory_map_size, memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
     uefi_call_wrapper(BS->ExitBootServices, 2, ImageHandle, memory_map_key);
 
+    //construct kernel main function to call
     typedef void (*Kernel_entry)(KERNEL_CONTEXT_TABLE*);
     Kernel_entry kernel_main = (void*)loaded_addrs[0];
-    /*
-    KERNEL_HEAP heap = {
-        (uint8_t*)kernel_heap_map,
-        (uint8_t*)kernel_heap
+
+
+    KERNEL_PMM_RANGE kernel_pmm = {
+        (uint8_t*)lowest_usable_range_addr,
+        (uint8_t*)kernel_pmm_bitmap_addr,
+        kernel_pmm_bitmap_size
     };
-    */
+    //kernel context table
     KERNEL_CONTEXT_TABLE ctx = {
         ST->FirmwareVendor,
         ST->FirmwareRevision,
         ST->RuntimeServices,
+
         memory_map,
         memory_map_size,
         memory_map_size_pages,
         memory_map_descriptor_size,
+
         ST->ConfigurationTable,
         ST->NumberOfTableEntries,
+
         GOP->Mode,
         backbuffer,
+
         kernel_stack,
         kernel_stack_size,
-        //&heap,
+
+        loaded_addrs[0],
+        kernel_image_size_pages,
+
+        &kernel_pmm
+
     };
     //copy array loaded_addrs into struct
-    for(int i = 0; i < 4; i++){
-        ctx.resource_addrs[i] = loaded_addrs[i];
+    for(int i = 0; i < 3; i++){
+        ctx.kernel_resource_addrs[i] = loaded_addrs[i+1];
     }
 
     //switch to kernel stack and go to start of kernel image
@@ -318,16 +335,17 @@ void early_display_setting(){
     }
 }
 
-void load_kernel_resources(EFI_SYSTEM_TABLE* ST, EFI_HANDLE IH, EFI_FILE_PROTOCOL** root, EFI_PHYSICAL_ADDRESS loaded_addrs[], uint64_t kernel_stack_size, EFI_PHYSICAL_ADDRESS* kernel_stack){
+void load_kernel_resources(EFI_SYSTEM_TABLE* ST, EFI_HANDLE IH, EFI_FILE_PROTOCOL** root, EFI_PHYSICAL_ADDRESS loaded_addrs[], uint64_t kernel_stack_size, EFI_PHYSICAL_ADDRESS* kernel_stack, uint32_t* kernel_size){
     //Load kernel and data
     Print(L"loading kernel and data\r\n");
     
-    uint64_t kernel_stack_size_tmp = kernel_stack_size;
+    uint32_t kernel_stack_size_tmp = kernel_stack_size;
     *root = open_volume(ST, IH);
     
 
     //kernel stack size tmp becomes size of mem range file occupies
     loaded_addrs[0] = load_file_with_stack(ST, *root, L"kernel.bin", &kernel_stack_size_tmp);
+    *kernel_size = kernel_stack_size_tmp;
     //calculate kernel stack top addr from this info
     *kernel_stack = loaded_addrs[0] + kernel_stack_size_tmp * 0x1000;
 
@@ -512,8 +530,8 @@ EFI_PHYSICAL_ADDRESS load_file(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wc
     return addr;
 }
 
-//takes in stack size, returns total size of the file + stack in pages
-EFI_PHYSICAL_ADDRESS load_file_with_stack(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename, uint64_t* stack_size){
+//takes in stack size, returns (total size of the file + stack) in pages
+EFI_PHYSICAL_ADDRESS load_file_with_stack(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename, uint32_t* stack_size){
     EFI_BOOT_SERVICES* BS = ST->BootServices;
     EFI_STATUS status;
     EFI_FILE_PROTOCOL* file;
@@ -713,6 +731,10 @@ void print_memory_map(EFI_SYSTEM_TABLE* ST, UINTN memory_map_size, EFI_MEMORY_DE
                 status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_GREEN, EFI_GREEN));
                 if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
                 totalUsable += MM->NumberOfPages;
+            }
+            else if(MM->Type == EfiLoaderCode || MM->Type == EfiLoaderData){
+                status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_BLUE, EFI_BLUE));
+                if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
             }
             else{
                 status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_RED, EFI_RED));

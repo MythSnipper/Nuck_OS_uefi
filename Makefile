@@ -94,7 +94,11 @@ build/isr.o \
 build/ps2.o
 
 
-all: clean build copy-usbroot copydisk qemu
+all: givesudo clean build copy-usbroot copydisk qemu-refresh qemu
+
+givesudo:
+	sudo echo danke
+
 
 clean:
 	rm -rf build/*
@@ -219,7 +223,7 @@ qemu-slow:
     -drive file=$(DEVICE),if=none,format=raw,id=nuckusb
 
 qemu-refresh:
-	rm ovmf/$(QEMU_UEFI_CODE) ovmf/$(QEMU_UEFI_VARS)
+	rm ovmf/temp/$(QEMU_UEFI_CODE) ovmf/temp/$(QEMU_UEFI_VARS)
 	cp ovmf/$(QEMU_UEFI_CODE) ovmf/temp/
 	cp ovmf/$(QEMU_UEFI_VARS) ovmf/temp/
 

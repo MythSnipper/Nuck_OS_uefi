@@ -72,29 +72,36 @@ typedef struct{
 
 
 typedef struct{
+    uint8_t*                           start_addr;
     uint8_t*                           bitmap;
-    uint8_t*                           heap;
-    uint64_t                           heap_size_pages;
+    uint32_t                           bitmap_size_pages;
 } KERNEL_PMM_RANGE;
 
 typedef struct{
     int16_t*                           FirmwareVendor;
     uint32_t                           FirmwareRevision;
     EFI_RUNTIME_SERVICES*              RuntimeServices;
+
     EFI_MEMORY_DESCRIPTOR*             MemoryMap;
-    uint64_t                           MemoryMapSize;
-    uint64_t                           MemoryMapSizePages;
-    uint64_t                           MemoryMapDescriptorSize;
+    uint32_t                           MemoryMapSizeBytes;
+    uint32_t                           MemoryMapSizePages;
+    uint32_t                           MemoryMapDescriptorSize;
+
     EFI_CONFIGURATION_TABLE*           ConfigTable;
-    uint64_t                           ConfigTableEntriesCount;
+    uint32_t                           ConfigTableEntriesCount;
+
     EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* GOP;
     EFI_PHYSICAL_ADDRESS               fb; //backbuffer in bootloader, frontbuffer in kernel
-    EFI_PHYSICAL_ADDRESS               kernelStack;
-    uint64_t                           kernelStackSize;
-    //KERNEL_HEAP*                       heap;
-    EFI_PHYSICAL_ADDRESS               resource_addrs[4];
-} KERNEL_CONTEXT_TABLE;
 
+    EFI_PHYSICAL_ADDRESS               kernelStack;
+    uint32_t                           kernelStackSizePages;
+
+    EFI_PHYSICAL_ADDRESS               kernelImageStart;
+    uint32_t                           kernelImageSizePages;
+
+    KERNEL_PMM_RANGE*                  kernelPMMRange;
+    EFI_PHYSICAL_ADDRESS               kernel_resource_addrs[4];
+} KERNEL_CONTEXT_TABLE;
 
 
 

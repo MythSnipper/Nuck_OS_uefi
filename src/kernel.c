@@ -1975,9 +1975,9 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     KERNEL_NVIDEO pointer_icon;
 
     //parse media headers
-    NVIDEOParseHeader(&bad_apple, (uint8_t*) ctx->resource_addrs[1]);
-    NVIDEOParseHeader(&nuckos_logo, (uint8_t*) ctx->resource_addrs[2]);
-    NVIDEOParseHeader(&pointer_icon, (uint8_t*) ctx->resource_addrs[3]);
+    NVIDEOParseHeader(&bad_apple, (uint8_t*) ctx->kernel_resource_addrs[0]);
+    NVIDEOParseHeader(&nuckos_logo, (uint8_t*) ctx->kernel_resource_addrs[1]);
+    NVIDEOParseHeader(&pointer_icon, (uint8_t*) ctx->kernel_resource_addrs[2]);
 
     //MEM ALLOC TESTS
     /*
@@ -2065,7 +2065,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
         viewConfigTables(ctx->GOP, &ConOut, ctx->ConfigTable, ctx->ConfigTableEntriesCount);
 
-        printf(ctx->GOP, &ConOut, "size of stuff: %u + %u\r\n", sizeof(*ctx), ctx->MemoryMapSize);
+        printf(ctx->GOP, &ConOut, "size of stuff: %u + %u\r\n", sizeof(*ctx), ctx->MemoryMapSizeBytes);
 
         //logo
         GOPDrawImage(ctx->GOP, ctx->GOP->Info->HorizontalResolution - nuckos_logo.width - 10, ctx->GOP->Info->VerticalResolution - nuckos_logo.height - 10, &nuckos_logo);
@@ -2116,7 +2116,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
 //NEW physical memory manager related functions
 void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con){
-    uint64_t memory_map_size = ctx->MemoryMapSize;
+    uint64_t memory_map_size = ctx->MemoryMapSizeBytes;
     uint64_t memory_map_size_pages = ctx->MemoryMapSizePages;
     uint64_t memory_map_descriptor_size = ctx->MemoryMapDescriptorSize;
 
