@@ -73,8 +73,7 @@ KERNEL_CFLAGS =\
 -Wno-unused-variable \
 -ffreestanding \
 -fno-stack-protector \
--fpie \
--nostdlib \
+-fPIE \
 -m64 \
 -mno-red-zone \
 -Ignu-efi/inc \
@@ -90,6 +89,7 @@ KERNEL_OCPFLAGS =\
 KERNEL_OBJS =\
 build/kernel_entry.o \
 build/kernel.o \
+build/isr_stub.o \
 build/isr.o \
 build/ps2.o
 
@@ -116,6 +116,7 @@ build:
 	#kernel
 	nasm -f elf64 src/entry.asm -o build/kernel_entry.o
 	$(KERNEL_CC) $(KERNEL_CFLAGS) -c src/kernel.c -o build/kernel.o
+	nasm -f elf64 src/isr_stub.asm -o build/isr_stub.o
 	$(KERNEL_CC) $(KERNEL_CFLAGS) -mgeneral-regs-only -c src/isr.c -o build/isr.o
 	$(KERNEL_CC) $(KERNEL_CFLAGS) -c src/ps2.c -o build/ps2.o
 
@@ -198,7 +199,7 @@ copyimg:
 	sudo sync
 
 #test in qemu
-qemu:
+qemu-kvm:
 	sudo sync
 	sudo -E qemu-system-x86_64 \
 	-cpu host \
@@ -208,19 +209,19 @@ qemu:
 	-drive if=pflash,format=raw,unit=0,file=ovmf/temp/$(QEMU_UEFI_CODE),readonly=on \
 	-drive if=pflash,format=raw,unit=1,file=ovmf/temp/$(QEMU_UEFI_VARS) \
 	-usb -device usb-storage,drive=nuckusb \
-    -drive file=$(DEVICE),if=none,format=raw,id=nuckusb
+    -drive file=$(DEVICE),if=none,format=raw,id=nuckusb \
 
-#test in qemu(slow)
-qemu-slow:
+qemu:
 	sudo sync
 	sudo -E qemu-system-x86_64 \
-	-icount shift=10,sleep=on \
+	-accel tcg \
 	-m 8192 \
 	-net none \
 	-drive if=pflash,format=raw,unit=0,file=ovmf/temp/$(QEMU_UEFI_CODE),readonly=on \
 	-drive if=pflash,format=raw,unit=1,file=ovmf/temp/$(QEMU_UEFI_VARS) \
 	-usb -device usb-storage,drive=nuckusb \
-    -drive file=$(DEVICE),if=none,format=raw,id=nuckusb
+    -drive file=$(DEVICE),if=none,format=raw,id=nuckusb \
+	-s -S \
 
 qemu-refresh:
 	rm ovmf/temp/$(QEMU_UEFI_CODE) ovmf/temp/$(QEMU_UEFI_VARS)

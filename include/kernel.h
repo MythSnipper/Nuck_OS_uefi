@@ -8,13 +8,6 @@
 #include "../include/ps2.h"
 #include "../include/port_io.h"
 
-
-
-
-
-
-
-
 typedef struct __attribute__((packed)) {
     uint16_t limit_low;
     uint16_t base_low;
@@ -119,6 +112,35 @@ typedef struct{
 typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;
 
 
+
+
+
+
+
+
+//Global vars
+extern uint8_t VGAfont[];
+extern uint8_t Terminus8x16_Normal[];
+extern uint8_t Terminus8x16_Bold[];
+
+extern KERNEL_CONTEXT_TABLE* global_ctx;
+extern __attribute__((aligned(0x10)))GDT_Entry GDT[3];
+extern GDT_Descriptor GDTPtr;
+extern __attribute__((aligned(0x10)))IDT_Entry IDT[256];
+extern IDT_Descriptor IDTPtr;
+
+
+typedef void (*ISR)(struct interrupt_frame*);
+
+extern void isr_stub_0();
+extern void isr_stub_1();
+
+extern ISR IDT_handlers[256];
+extern void* IDT_handlers_ptr;
+
+
+
+
 void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con);
 
 
@@ -170,9 +192,9 @@ void GOPPutPixel(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t color);
 
 
 void* memcpy(void* source, void* dest, uint64_t size);
-static inline uint32_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
-static inline uint32_t hex(uint32_t hex);
-static inline void cpuid(int code, uint32_t* a, uint32_t* d);
+uint32_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+uint32_t hex(uint32_t hex);
+void cpuid(int code, uint32_t* a, uint32_t* d);
 void cpuid_get_vendor(uint8_t* CPUVendor);
 uint64_t rdtsc();
 

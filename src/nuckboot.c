@@ -300,6 +300,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     status = uefi_call_wrapper(BS->GetMemoryMap, 5, &memory_map_size, memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
     uefi_call_wrapper(BS->ExitBootServices, 2, ImageHandle, memory_map_key);
 
+
     //switch to kernel stack and go to start of kernel image
     asm volatile(
         ".intel_syntax noprefix\n"

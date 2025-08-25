@@ -11,7 +11,8 @@
         "cstdint": "c",
         "compare": "c",
         "format": "c",
-        "efi.h": "c"
+        "efi.h": "c",
+        "port_io.h": "c"
     },
     "makefile.configureOnOpen": true
 }
