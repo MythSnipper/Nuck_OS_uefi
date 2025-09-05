@@ -11,8 +11,6 @@ struct interrupt_frame{
     uint64_t ss;
 };
 
-void isr_empty(struct interrupt_frame* frame);
-void isr_52(struct interrupt_frame* frame);
 
 
 

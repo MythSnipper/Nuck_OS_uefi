@@ -116,8 +116,6 @@ typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;
 
 
 
-
-
 //Global vars
 extern uint8_t VGAfont[];
 extern uint8_t Terminus8x16_Normal[];
@@ -125,19 +123,14 @@ extern uint8_t Terminus8x16_Bold[];
 
 extern KERNEL_CONTEXT_TABLE* global_ctx;
 extern __attribute__((aligned(0x10)))GDT_Entry GDT[3];
-extern GDT_Descriptor GDTPtr;
+extern GDT_Descriptor GDTR;
 extern __attribute__((aligned(0x10)))IDT_Entry IDT[256];
-extern IDT_Descriptor IDTPtr;
+extern IDT_Descriptor IDTR;
 
+__attribute__((noreturn))
+extern void exception_handler(void);
 
-typedef void (*ISR)(struct interrupt_frame*);
-
-extern void isr_stub_0();
-extern void isr_stub_1();
-
-extern ISR IDT_handlers[256];
-extern void* IDT_handlers_ptr;
-
+extern void* isr_stub_table[];
 
 
 
@@ -157,7 +150,8 @@ typedef void (*Kernel_entry)(KERNEL_CONTEXT_TABLE*);
 //PIC functions
 static inline void PIC_disable();
 
-void setIDTEntry(IDT_Entry* entry, uint16_t segment, uint64_t offset, uint8_t ISTOffset, uint8_t attributes);
+void setIDTEntrya(IDT_Entry* entry, uint16_t segment, uint64_t offset, uint8_t ISTOffset, uint8_t attributes);
+void setIDTEntry(IDT_Entry* idt, uint8_t vector, void* isr, uint8_t attrs, uint16_t segment, uint8_t IST);
 void setGDTEntry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags);
 void triple_fault();
 

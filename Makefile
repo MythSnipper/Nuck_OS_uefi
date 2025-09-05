@@ -74,6 +74,7 @@ KERNEL_CFLAGS =\
 -ffreestanding \
 -fno-stack-protector \
 -fPIE \
+-g \
 -m64 \
 -mno-red-zone \
 -Ignu-efi/inc \
