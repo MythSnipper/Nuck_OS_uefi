@@ -19,7 +19,7 @@ typedef struct __attribute__((packed)) {
 
 typedef struct __attribute__((packed)) {
     uint16_t size; //gdt size - 1
-    uint64_t offset; //gdt start
+    GDT_Entry* offset; //gdt start
 } GDT_Descriptor;
 
 typedef struct __attribute__((packed)) {
@@ -34,7 +34,7 @@ typedef struct __attribute__((packed)) {
 
 typedef struct __attribute__((packed)) {
     uint16_t size; //idt size - 1
-    uint64_t offset; //idt start
+    IDT_Entry* offset; //idt start
 } IDT_Descriptor;
 
 
@@ -113,9 +113,6 @@ typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;
 
 
 
-
-
-
 //Global vars
 extern uint8_t VGAfont[];
 extern uint8_t Terminus8x16_Normal[];
@@ -127,15 +124,33 @@ extern GDT_Descriptor GDTR;
 extern __attribute__((aligned(0x10)))IDT_Entry IDT[256];
 extern IDT_Descriptor IDTR;
 
-__attribute__((noreturn))
 extern void exception_handler(void);
 
-extern void* isr_stub_table[];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con);
-
 
 //config table related
 void* getConfigTable(EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries, uint8_t tableindex);
@@ -146,13 +161,12 @@ uint8_t cmpGUID(EFI_GUID* guid1, EFI_GUID* guid2);
 
 typedef void (*Kernel_entry)(KERNEL_CONTEXT_TABLE*);
 
-
 //PIC functions
 static inline void PIC_disable();
 
-void setIDTEntrya(IDT_Entry* entry, uint16_t segment, uint64_t offset, uint8_t ISTOffset, uint8_t attributes);
-void setIDTEntry(IDT_Entry* idt, uint8_t vector, void* isr, uint8_t attrs, uint16_t segment, uint8_t IST);
-void setGDTEntry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags);
+
+void GDT_set_entry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags);
+void IDT_set_entry(IDT_Entry* idt, uint8_t vector, void* isr, uint8_t attrs, uint16_t segment, uint8_t IST);
 void triple_fault();
 
 /*

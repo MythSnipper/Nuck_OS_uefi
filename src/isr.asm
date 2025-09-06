@@ -1,3 +1,49 @@
+BITS 64
+
+
+;cpu pushes rsp ss rflags rip cs
+
+isr_asm_handler:
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rdi
+    push rsi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+
+    push rsp ;pass pointer of stack to C function
+    call isr_c_handler
+    add rsp, 4
+
+
+
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rsi
+    pop rdi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+
+
+
 
 
 %macro isr_err_stub 1
@@ -47,7 +93,7 @@ isr_err_stub    30
 isr_no_err_stub 31
 
 
-
+section .data
 global isr_stub_table
 isr_stub_table:
 %assign i 0

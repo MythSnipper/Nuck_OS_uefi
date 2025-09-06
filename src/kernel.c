@@ -4859,17 +4859,12 @@ KERNEL_CONTEXT_TABLE* global_ctx;
 
 __attribute__((aligned(0x10)))
 GDT_Entry GDT[3];
-GDT_Descriptor GDTR;
+GDT_Descriptor GDTR = {sizeof(GDT)-1, GDT};
 __attribute__((aligned(0x10)))
 IDT_Entry IDT[256];
-IDT_Descriptor IDTR;
-
-bool IDT_vectors[256];
+IDT_Descriptor IDTR = {sizeof(IDT)-1, IDT};
 
 
-
-__attribute__((noreturn))
-void exception_handler(void);
 void exception_handler(){
     asm volatile(
         ".intel_syntax noprefix\n"
@@ -4880,67 +4875,20 @@ void exception_handler(){
         "nop\n"
         "nop\n"
         "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
         ".att_syntax\n"
     );
 }
 
 void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
+    //disable PIC because not useful in the big 2025
+    PIC_disable();
+
+
     //make ctx global
     global_ctx = ctx;
 
     //set GDT entries
-    GDTR.size = sizeof(GDT)-1;
-    GDTR.offset = (uint64_t)&GDT;
-
-    setGDTEntry(&GDT[0], 0, 0, 0, 0); //null descriptor right here
+    setGDTEntry(&GDT[0], 0, 0, 0, 0); //null descriptor right here le
 
     setGDTEntry(&GDT[1], 0, 0, //Code segment, base and limit 0 because long mode
     0b10011010, //Access:present, ring 0, non system segment(code/data segment), executable(code segment), non conforming, readable, access
@@ -4968,26 +4916,19 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         : "memory", "rax"
     );
 
-    
     uint8_t CODE_SEG = sizeof(GDT[0]);
     uint8_t DATA_SEG = sizeof(GDT[0]) * 2;
 
 
-    //disable PIC
-    PIC_disable();
 
 nigga:
 
-    IDTR.size = sizeof(IDT)-1;
-    IDTR.offset = (uint64_t)&IDT[0];
     for(int vector = 0;vector < 256; vector++){
-        setIDTEntry(&IDT[0], vector, (void*)((uint64_t)&isr_stub_table + (uint64_t)isr_stub_table[vector]), 0x8E, CODE_SEG, 0);
-        IDT_vectors[vector] = true;
+        IDT_set_entry(&IDT[0], vector, (void*)((uint64_t)&isr_stub_table + (uint64_t)isr_stub_table[vector]), 0x8E, CODE_SEG, 0);
     }
 
 
     //load the IDT
-    
     asm volatile(
         ".intel_syntax noprefix\n"
         "lidt [%[idt]]\n"
@@ -4998,8 +4939,10 @@ nigga:
     );
     
 
+
+
     uint8_t versionMajor = 1;
-    uint8_t versionMinor = 4;
+    uint8_t versionMinor = 5;
 
 
     uint8_t CPUVendor[13];
@@ -5068,6 +5011,17 @@ nigga:
     int32_t pointerX = 0;
     int32_t pointerY = 0;
 
+    for(int vector = 0;vector < 256; vector++){
+        printf(ctx->GOP, &ConOut, "Entry %d: %p\r\n", vector, ((uint64_t)&isr_stub_table + (uint64_t)isr_stub_table[vector]));
+        memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
+        for(int i=0;i<200000;i++);
+    }
+    asm volatile(
+        ".intel_syntax noprefix\n"
+        "cli\n"
+        "hlt\n"
+        ".att_syntax\n"
+    );
 
     print_memory_map(ctx, &ConOut);
 
@@ -5556,7 +5510,7 @@ void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut){
 
 
 //GDT/IDT functions, general functions
-void setGDTEntry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags){
+void GDT_set_entry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags){
     entry->limit_low = (uint16_t)(limit & 0xFFFF);
     entry->base_low = (uint16_t)(base & 0xFFFF);
     entry->base_mid = (uint8_t)((base >> 16) & 0xFF);
@@ -5564,16 +5518,7 @@ void setGDTEntry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access
     entry->limit__flags = (uint8_t)(((limit >> 16) & 0xF) | (flags << 4));
     entry->base_high = (uint8_t)(base >> 24);
 }
-void setIDTEntrya(IDT_Entry* entry, uint16_t segment, uint64_t offset, uint8_t ISTOffset, uint8_t attributes){
-    entry->offset_low = (uint16_t)(offset & 0xFFFF);
-    entry->segment = segment;
-    entry->ist = (uint8_t)(ISTOffset & 0b111); //only last 3 bits are the ist, 5 high bits set to 0 because reserved
-    entry->attributes = attributes;
-    entry->offset_mid = (uint16_t)((offset >> 16) & 0xFFFF);
-    entry->offset_high = (uint32_t)((offset >> 32) & 0xFFFFFFFF);
-    entry->reserved = 0;
-}
-void setIDTEntry(IDT_Entry* idt, uint8_t vector, void* isr, uint8_t attrs, uint16_t segment, uint8_t IST){
+void IDT_set_entry(IDT_Entry* idt, uint8_t vector, void* isr, uint8_t attrs, uint16_t segment, uint8_t IST){
     IDT_Entry* descriptor = &idt[vector];
 
     descriptor->offset_low = (uint64_t)isr & 0xFFFF;
