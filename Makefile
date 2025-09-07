@@ -90,8 +90,9 @@ KERNEL_OCPFLAGS =\
 KERNEL_OBJS =\
 build/kernel_entry.o \
 build/kernel.o \
-build/isr_stub.o \
+build/isr_asm.o \
 build/isr.o \
+build/idt.o \
 build/ps2.o
 
 
@@ -114,12 +115,16 @@ build:
 	$(LD) $(LDFLAGS) build/nuckboot.o -o build/nuckboot.so  $(LDFLAGS_L)
 	$(OCP) $(OCPFLAGS) build/nuckboot.so build/nuckboot.efi
 
-	#kernel
+	#os
 	nasm -f elf64 src/entry.asm -o build/kernel_entry.o
 	$(KERNEL_CC) $(KERNEL_CFLAGS) -c src/kernel.c -o build/kernel.o
-	nasm -f elf64 src/isr_stub.asm -o build/isr_stub.o
+
+	nasm -f elf64 src/isr.asm -o build/isr_asm.o
 	$(KERNEL_CC) $(KERNEL_CFLAGS) -mgeneral-regs-only -c src/isr.c -o build/isr.o
+
+	$(KERNEL_CC) $(KERNEL_CFLAGS) -c src/idt.c -o build/idt.o
 	$(KERNEL_CC) $(KERNEL_CFLAGS) -c src/ps2.c -o build/ps2.o
+
 
 
 	#link kernel as ELF64 object

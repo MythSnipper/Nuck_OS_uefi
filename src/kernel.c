@@ -4859,43 +4859,34 @@ KERNEL_CONTEXT_TABLE* global_ctx;
 
 __attribute__((aligned(0x10)))
 GDT_Entry GDT[3];
-GDT_Descriptor GDTR = {sizeof(GDT)-1, GDT};
-__attribute__((aligned(0x10)))
-IDT_Entry IDT[256];
-IDT_Descriptor IDTR = {sizeof(IDT)-1, IDT};
+GDT_Descriptor GDTR;
 
-
-void exception_handler(){
-    asm volatile(
-        ".intel_syntax noprefix\n"
-        "cli\n"
-        "hlt\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        "nop\n"
-        ".att_syntax\n"
-    );
-}
 
 void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     //disable PIC because not useful in the big 2025
     PIC_disable();
-
+    //swap the display buffers so the GOP framebuffer is actually the backbuffer
+    {
+        EFI_PHYSICAL_ADDRESS backbuf = ctx->fb;
+        ctx->fb = ctx->GOP->FrameBufferBase; //set fb to vram
+        ctx->GOP->FrameBufferBase = backbuf; //set the GOP address to backbuffer
+    }
 
     //make ctx global
     global_ctx = ctx;
 
     //set GDT entries
-    setGDTEntry(&GDT[0], 0, 0, 0, 0); //null descriptor right here le
+    GDTR.size = sizeof(GDT)-1;
+    GDTR.offset = GDT;
 
-    setGDTEntry(&GDT[1], 0, 0, //Code segment, base and limit 0 because long mode
+    GDT_set_entry(&GDT[0], 0, 0, 0, 0); //null descriptor right here le
+
+    GDT_set_entry(&GDT[1], 0, 0, //Code segment, base and limit 0 because long mode
     0b10011010, //Access:present, ring 0, non system segment(code/data segment), executable(code segment), non conforming, readable, access
     0b1010 //granularity: page granularity(not byte), size flag(0 because long mode), long mode code, reserved
     );
 
-    setGDTEntry(&GDT[2], 0, 0, //Data segment, base and limit 0 because long mode
+    GDT_set_entry(&GDT[2], 0, 0, //Data segment, base and limit 0 because long mode
     0b10010010, //Access:present, ring 0, non system segment(code/data segment), non executable(data segment), up direction, writable, access
     0b1000 //granularity: page granularity(not byte), size flag(0 because long mode data), not long mode code, reserved
     );
@@ -4916,29 +4907,11 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         : "memory", "rax"
     );
 
+
     uint8_t CODE_SEG = sizeof(GDT[0]);
     uint8_t DATA_SEG = sizeof(GDT[0]) * 2;
 
-
-
-nigga:
-
-    for(int vector = 0;vector < 256; vector++){
-        IDT_set_entry(&IDT[0], vector, (void*)((uint64_t)&isr_stub_table + (uint64_t)isr_stub_table[vector]), 0x8E, CODE_SEG, 0);
-    }
-
-
-    //load the IDT
-    asm volatile(
-        ".intel_syntax noprefix\n"
-        "lidt [%[idt]]\n"
-        ".att_syntax\n"
-        :
-        : [idt] "r"(&IDTR)
-        : "memory"
-    );
-    
-
+    IDT_initialize(CODE_SEG, 0);
 
 
     uint8_t versionMajor = 1;
@@ -4948,15 +4921,7 @@ nigga:
     uint8_t CPUVendor[13];
     cpuid_get_vendor(CPUVendor);
 
-    //Display
-    //swap the buffers so the GOP framebuffer is actually the backbuffer
-    {
-        EFI_PHYSICAL_ADDRESS backbuf = ctx->fb;
-        ctx->fb = ctx->GOP->FrameBufferBase; //set fb to vram
-        ctx->GOP->FrameBufferBase = backbuf; //set the GOP address to backbuffer
-    }
 
-    
 
     KERNEL_TEXT_OUTPUT title = {Terminus8x16_Bold, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
     KERNEL_TEXT_OUTPUT ConOut = {Terminus8x16_Normal, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
@@ -5011,17 +4976,6 @@ nigga:
     int32_t pointerX = 0;
     int32_t pointerY = 0;
 
-    for(int vector = 0;vector < 256; vector++){
-        printf(ctx->GOP, &ConOut, "Entry %d: %p\r\n", vector, ((uint64_t)&isr_stub_table + (uint64_t)isr_stub_table[vector]));
-        memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
-        for(int i=0;i<200000;i++);
-    }
-    asm volatile(
-        ".intel_syntax noprefix\n"
-        "cli\n"
-        "hlt\n"
-        ".att_syntax\n"
-    );
 
     print_memory_map(ctx, &ConOut);
 
@@ -5129,9 +5083,10 @@ nigga:
     GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x20207F), true);
     printf(ctx->GOP, &title, "interrupting...\r\n");
     memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
+    for(int i=0;i<9000000;i++);
     asm volatile(
         ".intel_syntax noprefix\n"
-        "int 1\n"
+        "int 20\n"
         ".att_syntax\n"
     );
     printf(ctx->GOP, &title, "Done!\r\n");
@@ -5518,17 +5473,6 @@ void GDT_set_entry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t acce
     entry->limit__flags = (uint8_t)(((limit >> 16) & 0xF) | (flags << 4));
     entry->base_high = (uint8_t)(base >> 24);
 }
-void IDT_set_entry(IDT_Entry* idt, uint8_t vector, void* isr, uint8_t attrs, uint16_t segment, uint8_t IST){
-    IDT_Entry* descriptor = &idt[vector];
-
-    descriptor->offset_low = (uint64_t)isr & 0xFFFF;
-    descriptor->segment = segment;
-    descriptor->ist = IST & 0b111;
-    descriptor->attributes = attrs;
-    descriptor->offset_mid = ((uint64_t)isr >> 16) & 0xFFFF;
-    descriptor->offset_high = ((uint64_t)isr >> 32) & 0xFFFFFFFF;
-    descriptor->reserved = 0;
-}
 void triple_fault(){
     uint64_t egg = 0;
     asm volatile (
@@ -5874,6 +5818,115 @@ uint32_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a){
 }
 uint32_t hex(uint32_t hex){
     return hex | 0xFF000000;
+}
+
+void printd(char* str, ...){
+    EFI_GOP* GOP = global_ctx->GOP;
+    KERNEL_TEXT_OUTPUT* ConOut = &(KERNEL_TEXT_OUTPUT){Terminus8x16_Normal, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
+
+    va_list args;
+    va_start(args, str);
+
+    bool longType = false;
+    while (*str) {
+        if(*str != '%'){ //if not a format specifier
+            printChar(GOP, ConOut, *str++);
+            continue;
+        }
+        str++; //skip the '%'
+
+        if(*str == 0){
+            break;
+        }
+        if(*str == '%'){
+            printChar(GOP, ConOut, '%');
+            str++;
+            continue;
+        }
+
+        longType = false;
+        if(*str == 'l'){
+            longType = true;
+            str++;
+            if(*str == 0){
+                break;
+            }
+        }
+
+        char format = *str; //character
+        switch(format){
+            case 'c': //char
+                printChar(GOP, ConOut, (uint8_t)va_arg(args, int32_t));
+                break;
+            case 's': //string
+                printString(GOP, ConOut, (char*)va_arg(args, uint8_t*));
+                break;
+
+            case 'd':
+            case 'i': //signed int
+                if(longType){
+                    printInt(GOP, ConOut, (int64_t)va_arg(args, int64_t), 10);
+                }
+                else{
+                    printInt(GOP, ConOut, (int64_t)va_arg(args, int32_t), 10); 
+                }
+                break;
+            
+            case 'u': //unsigned int
+                if(longType){
+                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint64_t), 10);
+                }
+                else{
+                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint32_t), 10);
+                }
+                break;
+
+            case 'o': //octal
+                if(longType){
+                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint64_t), 8);
+                }
+                else{
+                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint32_t), 8);
+                }
+                break;
+            case 'x': //hex
+            case 'X': //hex
+                if(longType){
+                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint64_t), 16);
+                }
+                else{
+                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint32_t), 16);
+                }
+                break;
+
+            case 'p': //pointer
+                printUint(GOP, ConOut, (uint64_t)va_arg(args, void*), 16);
+                break;
+            
+            case 'f': //float
+                if(longType){
+                    printFloat(GOP, ConOut, (double) va_arg(args, double), 16); 
+                }
+                else{
+                    printFloat(GOP, ConOut, (double) va_arg(args, double), 6);
+                }
+                break;
+            case 'l':
+                printChar(GOP, ConOut, 'l');
+                break;
+            case 'n': //nothing
+                break;
+            default:
+                //nuh uh, print the character itself
+                printChar(GOP, ConOut, '%');
+                printChar(GOP, ConOut, format);
+                str--;
+                break;
+        }
+        str++;
+    }
+    va_end(args);
+    memcpy((void*)GOP->FrameBufferBase, (void*)global_ctx->fb, GOP->FrameBufferSize);    
 }
 
 //general functions

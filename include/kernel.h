@@ -4,6 +4,7 @@
 #include <efi.h>
 #include <efilib.h>
 
+#include "../include/idt.h"
 #include "../include/isr.h"
 #include "../include/ps2.h"
 #include "../include/port_io.h"
@@ -21,23 +22,6 @@ typedef struct __attribute__((packed)) {
     uint16_t size; //gdt size - 1
     GDT_Entry* offset; //gdt start
 } GDT_Descriptor;
-
-typedef struct __attribute__((packed)) {
-    uint16_t offset_low;
-    uint16_t segment;
-    uint8_t  ist;
-    uint8_t  attributes;
-    uint16_t offset_mid;
-    uint32_t offset_high;
-    uint32_t reserved;
-} IDT_Entry;
-
-typedef struct __attribute__((packed)) {
-    uint16_t size; //idt size - 1
-    IDT_Entry* offset; //idt start
-} IDT_Descriptor;
-
-
 
 typedef struct{
     uint8_t* font;
@@ -121,10 +105,6 @@ extern uint8_t Terminus8x16_Bold[];
 extern KERNEL_CONTEXT_TABLE* global_ctx;
 extern __attribute__((aligned(0x10)))GDT_Entry GDT[3];
 extern GDT_Descriptor GDTR;
-extern __attribute__((aligned(0x10)))IDT_Entry IDT[256];
-extern IDT_Descriptor IDTR;
-
-extern void exception_handler(void);
 
 
 
@@ -166,7 +146,6 @@ static inline void PIC_disable();
 
 
 void GDT_set_entry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags);
-void IDT_set_entry(IDT_Entry* idt, uint8_t vector, void* isr, uint8_t attrs, uint16_t segment, uint8_t IST);
 void triple_fault();
 
 /*
@@ -196,7 +175,7 @@ void printString(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char* string);
 void printChar(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char ascii_char);
 void GOPDrawRect(EFI_GOP* GOP, uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color, uint8_t fill);
 void GOPPutPixel(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t color);
-
+void printd(char* str, ...);
 
 
 void* memcpy(void* source, void* dest, uint64_t size);
