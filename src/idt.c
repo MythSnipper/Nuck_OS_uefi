@@ -17,7 +17,6 @@ void IDT_initialize(uint16_t segment, uint8_t IST){
     }
 
     //load the IDT
-    
     asm volatile(
         ".intel_syntax noprefix\n"
         "lidt [%[idt]]\n"

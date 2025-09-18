@@ -1,8 +1,5 @@
 BITS 64
 
-
-
-
 %macro isr_err_stub 1
 global isr_stub_%+%1
 isr_stub_%+%1:

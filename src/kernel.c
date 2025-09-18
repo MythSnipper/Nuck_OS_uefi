@@ -4908,7 +4908,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         : "memory", "rax"
     );
     printd("GDT loaded!\r\n");
-    for(int i=0;i<400000;i++);
+    for(int i=0;i<400000000;i++);
 
 
     uint8_t CODE_SEG = sizeof(GDT[0]);
@@ -4917,7 +4917,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     IDT_initialize(CODE_SEG, 0);
 
     printd("\r\nIDT loaded!\r\n");
-    for(int i=0;i<400000;i++);
+    for(int i=0;i<400000000;i++);
 
     uint8_t versionMajor = 1;
     uint8_t versionMinor = 5;
@@ -4984,7 +4984,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
     print_memory_map(ctx, &ConOut);
 
-    while(1);
+
 
     while(true){
         //display
@@ -5090,9 +5090,10 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x20207F), true);
     printf(ctx->GOP, &title, "interrupting...\r\n");
     memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
-    for(int i=0;i<9000000;i++);
+    for(int i=0;i<1000000000;i++);
     asm volatile(
         ".intel_syntax noprefix\n"
+        "mov rax, 67\n"
         "mov rcx, 0\n"
         "div rcx\n"
         ".att_syntax\n"
