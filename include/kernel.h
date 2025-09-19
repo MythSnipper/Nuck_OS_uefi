@@ -5,7 +5,6 @@
 #include <efilib.h>
 
 #include "../include/idt.h"
-#include "../include/isr.h"
 #include "../include/ps2.h"
 #include "../include/port_io.h"
 

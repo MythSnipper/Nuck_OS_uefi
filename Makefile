@@ -1,9 +1,11 @@
 .PHONY: build src mnt gnu-efi keys ovmf shim
 
+NUCK = p
+
 DEVICE ?= /dev/null
-EFI_PART = $(DEVICE)1
+EFI_PART = $(DEVICE)$(NUCK)1
 EFI_PART_SIZE = 2G#MiB
-MAIN_PART = $(DEVICE)2
+MAIN_PART = $(DEVICE)$(NUCK)2
 
 #iso image building shenanigans
 IMAGE_SIZE = 2048 #size in MiB
@@ -12,8 +14,6 @@ IMAGE_NAME = nuck_os.iso
 #uefi for qemu
 QEMU_UEFI_CODE = OVMF_CODE.fd
 QEMU_UEFI_VARS = OVMF_VARS.fd
-
-
 
 
 CC = gcc
@@ -105,6 +105,10 @@ givesudo:
 clean:
 	rm -rf build/*
 	rm -rf usbroot/*
+
+initramdisk:
+	sudo modprobe brd rd_nr=1 rd_size=2097152
+	lsblk /dev/ram0
 
 #build code into build directory
 build:

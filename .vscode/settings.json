@@ -12,7 +12,8 @@
         "compare": "c",
         "format": "c",
         "efi.h": "c",
-        "port_io.h": "c"
+        "port_io.h": "c",
+        "idt.h": "c"
     },
     "makefile.configureOnOpen": true
 }

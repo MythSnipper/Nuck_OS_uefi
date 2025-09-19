@@ -4875,6 +4875,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     //make ctx global
     global_ctx = ctx;
 
+
     //set GDT entries
     GDTR.size = sizeof(GDT)-1;
     GDTR.offset = GDT;
@@ -4906,6 +4907,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         : [gdt] "r"(&GDTR)
         : "memory", "rax"
     );
+    printd("GDT loaded!\r\n");
+    for(int i=0;i<400000;i++);
 
 
     uint8_t CODE_SEG = sizeof(GDT[0]);
@@ -4913,6 +4916,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
     IDT_initialize(CODE_SEG, 0);
 
+    printd("\r\nIDT loaded!\r\n");
+    for(int i=0;i<400000;i++);
 
     uint8_t versionMajor = 1;
     uint8_t versionMinor = 5;
@@ -4978,6 +4983,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
 
     print_memory_map(ctx, &ConOut);
+
+    while(1);
 
     while(true){
         //display
@@ -5086,7 +5093,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     for(int i=0;i<9000000;i++);
     asm volatile(
         ".intel_syntax noprefix\n"
-        "int 20\n"
+        "mov rcx, 0\n"
+        "div rcx\n"
         ".att_syntax\n"
     );
     printf(ctx->GOP, &title, "Done!\r\n");
