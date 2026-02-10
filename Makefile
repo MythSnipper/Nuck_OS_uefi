@@ -15,7 +15,6 @@ IMAGE_NAME = nuck_os.iso
 QEMU_UEFI_CODE = OVMF_CODE.fd
 QEMU_UEFI_VARS = OVMF_VARS.fd
 
-
 CC = gcc
 LD = ld
 OCP = objcopy
@@ -63,8 +62,6 @@ OCPFLAGS =\
 --target efi-app-x86_64 \
 --subsystem=10
 
-
-
 KERNEL_CFLAGS =\
 -Wall \
 -Wextra \
@@ -95,12 +92,10 @@ build/isr.o \
 build/idt.o \
 build/ps2.o
 
-
 all: givesudo clean build copy-usbroot copydisk qemu-refresh qemu
 
 givesudo:
 	sudo echo danke
-
 
 clean:
 	rm -rf build/*
@@ -145,7 +140,6 @@ copy-usbroot:
 	cp gnu-efi/Shell_Full.efi usbroot/EFI/BOOT/SHELLX64.EFI
 	cp build/kernel-full.bin usbroot/kernel.bin
 	cp data/out/*.nvideo usbroot/
-
 
 #reconstruct usb partitions and format
 disk:
@@ -237,8 +231,6 @@ qemu-refresh:
 	rm ovmf/temp/$(QEMU_UEFI_CODE) ovmf/temp/$(QEMU_UEFI_VARS)
 	cp ovmf/$(QEMU_UEFI_CODE) ovmf/temp/
 	cp ovmf/$(QEMU_UEFI_VARS) ovmf/temp/
-
-
 
 convert-source:
 	rm -rf data/pre-convert/*
