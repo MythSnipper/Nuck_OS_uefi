@@ -1,20 +1,17 @@
 .PHONY: build src mnt gnu-efi keys ovmf shim
 
-NUCK = p
 
 DEVICE ?= /dev/null
-EFI_PART = $(DEVICE)$(NUCK)1
-EFI_PART_SIZE = 2G#MiB
-MAIN_PART = $(DEVICE)$(NUCK)2
 
-#iso image building shenanigans
-IMAGE_SIZE = 2048 #size in MiB
-IMAGE_NAME = nuck_os.iso
+part_prefix := p
+EFI_PART = $(DEVICE)$(part_prefix)1
 
-#uefi for qemu
+
+#uefi files for qemu
 QEMU_UEFI_CODE = OVMF_CODE.fd
 QEMU_UEFI_VARS = OVMF_VARS.fd
 
+#tools used
 CC = gcc
 LD = ld
 OCP = objcopy
@@ -92,18 +89,16 @@ build/isr.o \
 build/idt.o \
 build/ps2.o
 
-all: givesudo clean build copy-usbroot copydisk qemu-refresh qemu
+all: givesudo clean build copy-to-usbroot copy-to-device qemu-refresh qemu
 
 givesudo:
-	sudo echo danke
+	sudo echo vel
 
 clean:
 	rm -rf build/*
 	rm -rf usbroot/*
 
-initramdisk:
-	sudo modprobe brd rd_nr=1 rd_size=2097152
-	lsblk /dev/ram0
+# BUILDING ------------------------------------------------------------
 
 #build code into build directory
 build:
@@ -134,59 +129,32 @@ build:
 	#objcopy to flat binary
 	$(KERNEL_OCP) $(KERNEL_OCPFLAGS) build/kernel-full.o build/kernel-full.bin
 
+# ------------------------------------------------------------
+
+#makes a ram storage device at /dev/ram0
+#ramdisk_size = 2097152
+ramdisk_size = 1048576 #1 GiB
+ramdisk_efipart_size = 200M
+ramdisk:
+	sudo modprobe brd rd_nr=1 rd_size=$(ramdisk_size)
+	lsblk /dev/ram0
+	echo -e "g\nn\n\n\n+$(ramdisk_efipart_size)\nt\n1\nn\n\n\n\nw\n" | sudo fdisk /dev/ram0
+	sudo mkfs.vfat -F 32 -n NUCKBOOT /dev/ram0p1
+	sudo mkfs.ext2 -b 4096 -L NUCKOS /dev/ram0p2
+
+#destroy the ramdisk
+uramdisk:
+	sudo modprobe -r brd
+
 #copy code and data to usbroot
-copy-usbroot:
+copy-to-usbroot:
 	cp build/nuckboot.efi usbroot/EFI/BOOT/BOOTX64.EFI
 	cp gnu-efi/Shell_Full.efi usbroot/EFI/BOOT/SHELLX64.EFI
 	cp build/kernel-full.bin usbroot/kernel.bin
 	cp data/out/*.nvideo usbroot/
 
-#reconstruct usb partitions and format
-disk:
-	echo -e "+${EFI_PART_SIZE}"
-	#GPT table and create partition
-	echo -e "g\nY\nn\n1\n\n+${EFI_PART_SIZE}\nY\nt\n1\nn\n2\n\n\nt\n2\n222\nw\n" | sudo fdisk $(DEVICE)
-	sudo sync
-
-	#format to FAT32 EFI System
-	sudo mkfs.vfat -F 32 -n "EFI System" -s 16 -v $(EFI_PART)
-
-	#format to ext2
-	echo -e "y\n" | sudo mkfs.ext2 $(MAIN_PART)
-	sudo sync
-
-#build iso image(don't do)
-img:
-	rm -rf build/*.iso
-	dd if=/dev/zero of=build/$(IMAGE_NAME) bs=1MiB count=$(IMAGE_SIZE) status=progress
-
-	LOOP_DEV=$$(sudo losetup -f --show build/$(IMAGE_NAME)); \
-	echo -e "g\nn\n\n\n+${EFI_PART_SIZE}\nt\n1\nn\n\n\n\nt\n2\n222\nw" | sudo fdisk $$LOOP_DEV; \
-	sudo sync; \
-	sudo losetup -d $$LOOP_DEV; \
-	\
-	LOOP_DEV=$$(sudo losetup -f --show -P build/$(IMAGE_NAME)); \
-	lsblk; \
-	sudo mkfs.vfat -F 32 -n "EFI System" -s 16 -v $${LOOP_DEV}p1; \
-	echo -e "y\n" | sudo mkfs.ext2 $${LOOP_DEV}p2; \
-	sudo sync; \
-	\
-	sudo mount $${LOOP_DEV}p1 mnt/; \
-	sudo rm -rf mnt/*; \
-	sudo cp -r usbroot/* mnt/; \
-	sudo tree mnt/; \
-	sudo umount $${LOOP_DEV}p1; \
-	\
-	sudo mount $${LOOP_DEV}p2 mnt/; \
-	sudo rm -rf mnt/*; \
-	sudo cp -r usbmain/* mnt/; \
-	sudo tree mnt/; \
-	sudo umount $${LOOP_DEV}p2; \
-	\
-	sudo losetup -d $$LOOP_DEV
-
-#copy files to usb
-copydisk:
+#copy files to device
+copy-to-device:
 	lsblk
 
 	sudo mount $(EFI_PART) mnt/
@@ -202,7 +170,10 @@ copyimg:
 	sudo dd if=build/nuck_os.iso of=$(DEVICE) bs=1MiB status=progress
 	sudo sync
 
-#test in qemu
+
+# TESTING ------------------------------------------------------------
+
+#test in qemu(fast)
 qemu-kvm:
 	sudo sync
 	sudo -E qemu-system-x86_64 \
@@ -215,6 +186,7 @@ qemu-kvm:
 	-usb -device usb-storage,drive=nuckusb \
     -drive file=$(DEVICE),if=none,format=raw,id=nuckusb \
 
+#test in qemu(software emulated, pause on start, needs gdb)
 qemu:
 	sudo sync
 	sudo -E qemu-system-x86_64 \
@@ -227,10 +199,13 @@ qemu:
     -drive file=$(DEVICE),if=none,format=raw,id=nuckusb \
 	-s -S \
 
+#refresh UEFI firmware files used for qemu
 qemu-refresh:
 	rm ovmf/temp/$(QEMU_UEFI_CODE) ovmf/temp/$(QEMU_UEFI_VARS)
 	cp ovmf/$(QEMU_UEFI_CODE) ovmf/temp/
 	cp ovmf/$(QEMU_UEFI_VARS) ovmf/temp/
+
+# MEDIA ------------------------------------------------------------
 
 convert-source:
 	rm -rf data/pre-convert/*
@@ -259,5 +234,4 @@ build-nvideo:
 
 	#pointer
 	scripts/convert-nvideo data/pre-convert/pointer data/out/pointer.nvideo 2 .png
-
 
