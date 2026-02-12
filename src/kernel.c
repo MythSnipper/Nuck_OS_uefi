@@ -4853,7 +4853,6 @@
         0b00000000,
     };
 
-
 //global vars
 KERNEL_CONTEXT_TABLE* global_ctx;
 
@@ -4861,8 +4860,8 @@ __attribute__((aligned(0x10)))
 GDT_Entry GDT[3];
 GDT_Descriptor GDTR;
 
-
 void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
+
     //disable PIC because not useful in the big 2025
     PIC_disable();
     //swap the display buffers so the GOP framebuffer is actually the backbuffer
@@ -4874,7 +4873,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
     //make ctx global
     global_ctx = ctx;
-
 
     //set GDT entries
     GDTR.size = sizeof(GDT)-1;
@@ -4908,13 +4906,10 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         : "memory", "rax"
     );
     printd("GDT loaded!\r\n");
-    for(int i=0;i<400000000;i++);
-
 
     uint8_t CODE_SEG = sizeof(GDT[0]);
     uint8_t DATA_SEG = sizeof(GDT[0]) * 2;
 
-    IDT_initialize(CODE_SEG, 0);
 
     printd("\r\nIDT loaded!\r\n");
     for(int i=0;i<400000000;i++);
@@ -4981,10 +4976,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     int32_t pointerX = 0;
     int32_t pointerY = 0;
 
-
     print_memory_map(ctx, &ConOut);
-
-
 
     while(true){
         //display
@@ -5201,9 +5193,6 @@ void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con){
     printf(ctx->GOP, Con, "Total mapped memory: %d pages/%f GB/%f GiB\r\n", totalMapped, totalMapped/250000.0f, totalMapped/262144.0f);
     printf(ctx->GOP, Con, "Total usable memory: %d pages/%f GB/%f GiB\r\n", totalUsable, totalUsable/250000.0f, totalUsable/262144.0f);
 }
-
-
-
 
 
 //config table related functions

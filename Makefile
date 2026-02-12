@@ -5,7 +5,7 @@ DEVICE ?= /dev/null
 
 part_prefix := p
 EFI_PART = $(DEVICE)$(part_prefix)1
-
+OS_PART = $(DEVICE)$(part_prefix)2
 
 #uefi files for qemu
 QEMU_UEFI_CODE = OVMF_CODE.fd
@@ -169,7 +169,6 @@ copyimg:
 	lsblk
 	sudo dd if=build/nuck_os.iso of=$(DEVICE) bs=1MiB status=progress
 	sudo sync
-
 
 # TESTING ------------------------------------------------------------
 

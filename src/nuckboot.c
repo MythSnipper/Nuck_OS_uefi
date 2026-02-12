@@ -1,6 +1,5 @@
 #include "../include/nuckboot.h"
 
-
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable){
     EFI_SYSTEM_TABLE* ST = SystemTable;
     EFI_BOOT_SERVICES* BS = ST->BootServices;
@@ -80,7 +79,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
 
     Print(L"Press any key to continue...");
     while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
-
 
     menu_start:
     selected_menu_entry_index = 0;
@@ -163,8 +161,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                         }
                         get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
                         get_memory_map_highlow_address(memory_map_size, memory_map, memory_map_descriptor_size, &lowest_usable_range_addr, &highest_usable_range_addr);
-
-
 
                         //last allocation
                         //allocate memory for backbuffer
@@ -295,11 +291,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     ctx->kernel_resource_addrs[1] = loaded_addrs[2];
     ctx->kernel_resource_addrs[2] = loaded_addrs[3];
 
-    
     //get memory map and exit boot services
     status = uefi_call_wrapper(BS->GetMemoryMap, 5, &memory_map_size, memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
     uefi_call_wrapper(BS->ExitBootServices, 2, ImageHandle, memory_map_key);
-
 
     //switch to kernel stack and go to start of kernel image
     asm volatile(
