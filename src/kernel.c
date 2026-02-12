@@ -4910,6 +4910,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     uint8_t CODE_SEG = sizeof(GDT[0]);
     uint8_t DATA_SEG = sizeof(GDT[0]) * 2;
 
+    //todo: load idt
 
     printd("\r\nIDT loaded!\r\n");
     for(int i=0;i<400000000;i++);
@@ -5037,6 +5038,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         GOPDrawImage(ctx->GOP, ctx->GOP->Info->HorizontalResolution - nuckos_logo.width - 10, ctx->GOP->Info->VerticalResolution - nuckos_logo.height - 10, &nuckos_logo);
 
         //PS/2 input
+        /*
         uint8_t is_mouse = PS2_poll(&scancode, &dx, &dy, &lrm);
         
         if(!is_mouse){ //keyboard
@@ -5070,13 +5072,14 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
                 if(pointerY > (int32_t)(ctx->GOP->Info->VerticalResolution-1))pointerY = ctx->GOP->Info->VerticalResolution-1;
             }
         }
+        */
 
         //pointer icon
         GOPDrawImage(ctx->GOP, pointerX, pointerY, &pointer_icon);
 
         //copy framebuffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
-        break;
+        //break;
     }
 
     GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x20207F), true);
