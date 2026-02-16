@@ -134,7 +134,7 @@ build:
 #makes a ram storage device at /dev/ram0
 #ramdisk_size = 2097152
 ramdisk_size = 1048576 #1 GiB
-ramdisk_efipart_size = 200M
+ramdisk_efipart_size = 500M
 ramdisk:
 	sudo modprobe brd rd_nr=1 rd_size=$(ramdisk_size)
 	lsblk /dev/ram0

@@ -1,7 +1,7 @@
 BITS 64
 
 global __asm_entry_start
-extern kernel_main
+extern kernel_maina
 
 section .text.boot
 __asm_entry_start:
