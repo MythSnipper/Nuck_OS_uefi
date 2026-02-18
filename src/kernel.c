@@ -4894,6 +4894,11 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     asm volatile(
         ".intel_syntax noprefix\n"
         "lgdt [%[gdt]]\n"
+        "push 0x08\n"
+        "lea rax, [rip+__long_jump_after_loading_gdt]\n"
+        "push rax\n"
+        "retfq\n"
+        "__long_jump_after_loading_gdt:\n"
         "mov ax, 0x10\n"
         "mov ds, ax\n"
         "mov es, ax\n"
@@ -4911,6 +4916,19 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     uint8_t DATA_SEG = sizeof(GDT[0]) * 2;
 
     //todo: load idt
+    IDT_initialize(CODE_SEG, 0);
+    
+    asm volatile(
+        ".intel_syntax noprefix\n"
+        "lidt [%[idt]]\n"
+        "sti\n"
+        ".att_syntax\n"
+        :
+        : [idt] "r"(&IDTR)
+        : "memory"
+    );
+
+    
 
     printd("\r\nIDT loaded!\r\n");
     for(int i=0;i<400000000;i++);
@@ -4921,8 +4939,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
     uint8_t CPUVendor[13];
     cpuid_get_vendor(CPUVendor);
-
-
 
     KERNEL_TEXT_OUTPUT title = {Terminus8x16_Bold, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
     KERNEL_TEXT_OUTPUT ConOut = {Terminus8x16_Normal, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
@@ -5079,7 +5095,9 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
         //copy framebuffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
-        //break;
+        
+        //do this to test interrupts i guess
+        break;
     }
 
     GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x20207F), true);
@@ -5088,10 +5106,66 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     for(int i=0;i<1000000000;i++);
     asm volatile(
         ".intel_syntax noprefix\n"
-        "mov rax, 67\n"
-        "mov rcx, 0\n"
-        "div rcx\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
         ".att_syntax\n"
+        :
+        :
+        :
+    );
+    asm volatile(
+        ".intel_syntax noprefix\n"
+        "int 0x3\n"
+        ".att_syntax\n"
+    );
+    asm volatile(
+        ".intel_syntax noprefix\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        ".att_syntax\n"
+        :
+        :
+        :
+    );
+    for(int i=0;i<1000000000;i++);
+    asm volatile(
+        ".intel_syntax noprefix\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        "nop\n"
+        ".att_syntax\n"
+        :
+        :
+        :
     );
     printf(ctx->GOP, &title, "Done!\r\n");
     memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);

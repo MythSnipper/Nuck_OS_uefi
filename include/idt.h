@@ -21,6 +21,8 @@ typedef struct __attribute__((packed)) {
 
 typedef void (__attribute__((cdecl)) *isr_stub)();
 
+extern IDT_Descriptor IDTR;
+
 void IDT_initialize(uint16_t segment, uint8_t IST);
 void IDT_set_entry(IDT_Entry* idt, uint8_t vector, void* isr, uint8_t attrs, uint16_t segment, uint8_t IST);
 

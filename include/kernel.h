@@ -46,8 +46,6 @@ typedef struct{
     uint32_t frameCounter;
 } KERNEL_NVIDEO;
 
-
-
 typedef struct{
     uint8_t*                           start_addr;
     uint8_t*                           bitmap;
@@ -80,9 +78,6 @@ typedef struct{
     EFI_PHYSICAL_ADDRESS               kernel_resource_addrs[3];
 } KERNEL_CONTEXT_TABLE;
 
-
-
-
 /*
 typedef struct{
     KERNEL_PMM_RANGE*  heap;
@@ -91,10 +86,7 @@ typedef struct{
 } KERNEL_SUBPAGE_ALLOCATOR;
 */
 
-
 typedef EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE EFI_GOP;
-
-
 
 //Global vars
 extern uint8_t VGAfont[];
@@ -104,26 +96,6 @@ extern uint8_t Terminus8x16_Bold[];
 extern KERNEL_CONTEXT_TABLE* global_ctx;
 extern __attribute__((aligned(0x10)))GDT_Entry GDT[3];
 extern GDT_Descriptor GDTR;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

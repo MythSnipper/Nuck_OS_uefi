@@ -2,7 +2,6 @@
 #include "../include/kernel.h"
 
 void __attribute__((cdecl)) isr_c_handler(interrupt_frame* ctx){
-    while(1);
     asm volatile(
         "mov rax, 67\n"
         "nop\n"
