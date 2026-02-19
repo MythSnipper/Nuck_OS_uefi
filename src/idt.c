@@ -13,23 +13,13 @@ void IDT_initialize(uint16_t segment, uint8_t IST){
     IDTR.offset = IDT;
 
     for(int i=0;i<256;i++){
-        IDT_set_entry(&IDT[i], i, isr_table[i], 0x8E, segment, IST);
+        IDT_set_entry(i, isr_table[i], 0x8E, segment, IST);
     }
-
-    //load the IDT
-    asm volatile(
-        ".intel_syntax noprefix\n"
-        "lidt [%[idt]]\n"
-        ".att_syntax\n"
-        :
-        : [idt] "r"(&IDTR)
-        : "memory"
-    );
-    printd("idt ptr: %p\r\n", &IDTR);
 }
 
-void IDT_set_entry(IDT_Entry* idt, uint8_t vector, void* isr, uint8_t attrs, uint16_t segment, uint8_t IST){
-    IDT_Entry* descriptor = &idt[vector];
+//sets entry in the IDT table, uses global IDT
+void IDT_set_entry(uint8_t vector, void* isr, uint8_t attrs, uint16_t segment, uint8_t IST){
+    IDT_Entry* descriptor = &IDT[vector];
 
     descriptor->offset_low = (uint64_t)isr & 0xFFFF;
     descriptor->segment = segment;

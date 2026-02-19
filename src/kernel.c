@@ -4912,8 +4912,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     );
     printd("GDT loaded!\r\n");
 
-    uint8_t CODE_SEG = sizeof(GDT[0]);
-    uint8_t DATA_SEG = sizeof(GDT[0]) * 2;
+    uint8_t CODE_SEG = 0x08;
+    uint8_t DATA_SEG = 0x10;
 
     //todo: load idt
     IDT_initialize(CODE_SEG, 0);

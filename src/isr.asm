@@ -60,7 +60,11 @@ isr_no_err_stub 31
 extern isr_c_handler
 
 global isr_asm_handler
-;cpu pushes rsp ss rflags rip cs
+
+; CPU pushes:
+; same privilege: RIP CS RFLAGS
+; privilege change: SS RSP RFLAGS CS RIP
+; error interrupts also push error code
 isr_asm_handler:
     push rax
     push rbx
@@ -78,9 +82,8 @@ isr_asm_handler:
     push r14
     push r15
 
-    push rsp ;pass pointer of stack to C function
+    mov rdi, rsp ;pass pointer of stack to C function
     call isr_c_handler
-    add rsp, 8 ;remove the pushed rsp(64 bits)
 
     pop r15
     pop r14

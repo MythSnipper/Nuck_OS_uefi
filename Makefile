@@ -52,11 +52,13 @@ OCPFLAGS =\
 -j .data \
 -j .rodata \
 -j .dynamic \
--j .dynsym  \
+-j .dynsym \
 -j .rel \
 -j .rela \
--j .rel.* -j .rela.* -j .reloc \
---target efi-app-x86_64 \
+-j .rel.* \
+-j .rela.* \
+-j .reloc \
+--output-target efi-app-x86_64 \
 --subsystem=10
 
 KERNEL_CFLAGS =\

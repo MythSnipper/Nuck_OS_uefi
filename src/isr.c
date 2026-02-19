@@ -1,8 +1,9 @@
 #include "../include/isr.h"
 #include "../include/kernel.h"
 
-void __attribute__((cdecl)) isr_c_handler(interrupt_frame* ctx){
+void isr_c_handler(interrupt_frame* ctx){
     asm volatile(
+        ".intel_syntax noprefix\n"
         "mov rax, 67\n"
         "nop\n"
         "mov rax, 67\n"
@@ -77,6 +78,7 @@ void __attribute__((cdecl)) isr_c_handler(interrupt_frame* ctx){
         "nop\n"
         "mov rax, 67\n"
         "nop\n"
+        ".att_syntax\n"
     );
     printd("Interrupt %d TRIGGERED\n", ctx->interrupt);
     while(1);
