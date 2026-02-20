@@ -55,6 +55,9 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     //make ctx global
     global_ctx = ctx;
 
+    //clear screen
+    GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
+
     //set GDT entries
     GDTR.size = sizeof(GDT)-1;
     GDTR.offset = GDT;
@@ -91,7 +94,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         : [gdt] "r"(&GDTR)
         : "memory", "rax"
     );
-    printd("GDT loaded!\r\n");
+    //printd("GDT loaded!\r\n");
 
     uint8_t CODE_SEG = 0x08;
     uint8_t DATA_SEG = 0x10;
@@ -109,14 +112,10 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         : "memory"
     );
 
-    
-
-    printd("\r\nIDT loaded!\r\n");
-    for(int i=0;i<400000000;i++);
+    //printd("\r\nIDT loaded!\r\n");
 
     uint8_t versionMajor = 1;
     uint8_t versionMinor = 5;
-
 
     uint8_t CPUVendor[13];
     cpuid_get_vendor(CPUVendor);
@@ -142,7 +141,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     NVIDEOParseHeader(&bad_apple, (uint8_t*) ctx->kernel_resource_addrs[0]);
     NVIDEOParseHeader(&nuckos_logo, (uint8_t*) ctx->kernel_resource_addrs[1]);
     NVIDEOParseHeader(&pointer_icon, (uint8_t*) ctx->kernel_resource_addrs[2]);
-
 
     
     //MEM ALLOC TESTS
@@ -174,7 +172,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     int32_t pointerX = 0;
     int32_t pointerY = 0;
 
-    print_memory_map(ctx, &ConOut);
+    //print_memory_map(ctx, &ConOut);
 
     while(true){
         //display
@@ -194,8 +192,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         GOPDrawRect(ctx->GOP, 0, 4*screenYFraction, screenX, 5*screenYFraction - 1, hex(0x55CDFC), fill);
         */
         GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x00807F), true);
-
-        GOPPlayVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - bad_apple.width, 0, &bad_apple, true);
         
         printf(ctx->GOP, &ConOut, "(operating system of the future)\r\n");
         printf(ctx->GOP, &ConOut, "Display pixel format: %d\r\n", ctx->GOP->Info->PixelFormat);
@@ -274,11 +270,15 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         //pointer icon
         GOPDrawImage(ctx->GOP, pointerX, pointerY, &pointer_icon);
 
+
+        GOPPlayVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - bad_apple.width, 0, &bad_apple, true);
+
+
         //copy framebuffer
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
-        
+
         //do this to test interrupts i guess
-        break;
+        //break;
     }
 
     GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x20207F), true);
@@ -287,9 +287,16 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     
     asm volatile(
         ".intel_syntax noprefix\n"
+        "int 1\n"
         "int 6\n"
         "int 7\n"
         "int 67\n"
+        "int 188\n"
+        "int 27\n"
+        "int 95\n"
+        "int 21\n"
+        "int 30\n"
+        "int 1\n"
         ".att_syntax\n"
     );
 
@@ -478,7 +485,7 @@ void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con){
         MM = (EFI_MEMORY_DESCRIPTOR*)((uint8_t*)MM + memory_map_descriptor_size);
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
         //break here
-        for(uint32_t i=0;i<400000;i++);
+        //for(uint32_t i=0;i<400000;i++);
     }
     printf(ctx->GOP, Con, "Total mapped memory: %d pages/%f GB/%f GiB\r\n", totalMapped, totalMapped/250000.0f, totalMapped/262144.0f);
     printf(ctx->GOP, Con, "Total usable memory: %d pages/%f GB/%f GiB\r\n", totalUsable, totalUsable/250000.0f, totalUsable/262144.0f);

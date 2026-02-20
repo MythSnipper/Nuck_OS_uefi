@@ -3,7 +3,7 @@
 
 DEVICE ?= /dev/null
 
-part_prefix := p
+part_prefix ?= p
 EFI_PART = $(DEVICE)$(part_prefix)1
 OS_PART = $(DEVICE)$(part_prefix)2
 
