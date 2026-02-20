@@ -94,11 +94,32 @@ extern uint8_t Terminus8x16_Normal[];
 extern uint8_t Terminus8x16_Bold[];
 
 extern KERNEL_CONTEXT_TABLE* global_ctx;
-extern __attribute__((aligned(0x10)))GDT_Entry GDT[3];
 extern GDT_Descriptor GDTR;
 
+//IDT ---------------------------------------
 
+typedef struct __attribute__((packed)) {
+    uint16_t offset_low;
+    uint16_t segment;
+    uint8_t  ist;
+    uint8_t  attributes;
+    uint16_t offset_mid;
+    uint32_t offset_high;
+    uint32_t reserved;
+} IDT_Entry;
 
+typedef struct __attribute__((packed)) {
+    uint16_t size; //idt size - 1
+    uint64_t offset; //idt start
+} IDT_Descriptor;
+
+typedef void (*isr_stub)();
+
+extern IDT_Descriptor IDTR;
+
+void IDT_initialize(uint16_t segment, uint8_t IST);
+void IDT_set_entry(uint8_t vector, void* isr, uint8_t attrs, uint16_t segment, uint8_t IST);
+//IDT ---------------------------------------
 
 
 void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con);
