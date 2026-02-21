@@ -354,7 +354,7 @@ void load_kernel_resources(EFI_SYSTEM_TABLE* ST, EFI_HANDLE IH, EFI_FILE_PROTOCO
     //calculate kernel stack top addr from this info
     *kernel_stack = loaded_addrs[0] + kernel_stack_size_tmp * 0x1000;
 
-    loaded_addrs[1] = load_file(ST, *root, L"bad_appleW.nvideo");
+    loaded_addrs[1] = load_file(ST, *root, L"bad_apple.nvideo");
     loaded_addrs[2] = load_file(ST, *root, L"nuckos_logo.nvideo");
     loaded_addrs[3] = load_file(ST, *root, L"pointer.nvideo");
 

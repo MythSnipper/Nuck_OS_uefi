@@ -91,7 +91,8 @@ build/isr.o \
 build/idt.o \
 build/ps2.o
 
-all: givesudo clean build copy-to-usbroot copy-to-device qemu-refresh qemu
+debug: givesudo clean build copy-to-usbroot copy-to-device qemu-refresh qemu
+run: givesudo clean build copy-to-usbroot copy-to-device qemu-refresh qemu-kvm
 
 givesudo:
 	sudo echo vel

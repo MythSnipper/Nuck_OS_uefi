@@ -15,6 +15,7 @@ isr_stub_%+%1:
     jmp isr_asm_handler
 %endmacro
 
+section .text.asm_isr_stubs
 
 isr_no_err_stub 0
 isr_no_err_stub 1
@@ -58,6 +59,8 @@ isr_no_err_stub 31
 
 
 extern isr_c_handler
+
+section .text
 
 global isr_asm_handler
 

@@ -7,7 +7,6 @@ __attribute__((aligned(0x10)))
 GDT_Entry GDT[3];
 GDT_Descriptor GDTR;
 
-
 //IDT --------------------------
 __attribute__((aligned(0x10)))IDT_Entry IDT[256];
 IDT_Descriptor IDTR;
@@ -39,7 +38,6 @@ void IDT_set_entry(uint8_t vector, void* isr, uint8_t attrs, uint16_t segment, u
 }
 
 //IDT --------------------------
-
 
 void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
@@ -278,7 +276,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
 
         //do this to test interrupts i guess
-        //break;
+        break;
     }
 
     GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x20207F), true);
@@ -291,15 +289,15 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         "int 6\n"
         "int 7\n"
         "int 67\n"
-        "int 188\n"
+        "int 18\n"
         "int 27\n"
         "int 95\n"
         "int 21\n"
-        "int 30\n"
+        "int 29\n"
         "int 1\n"
         ".att_syntax\n"
     );
-
+    
 
     //printf(ctx->GOP, &title, "Done!\r\n");
     memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);

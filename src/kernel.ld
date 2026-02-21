@@ -4,12 +4,11 @@ SECTIONS {
     /* Start at offset 0, position-independent */
     . = 0;
 
-    _kernel_start = .;
-
     /* Code section: contains executable kernel code */
     .text ALIGN(4096) : {
         *(.text.boot)
         *(.text)
+        *(.text.asm_isr_stubs)
     }
 
     /* Read-only data: constants, strings, vtables, etc. */
@@ -33,3 +32,6 @@ SECTIONS {
         *(.eh_frame)
     }
 }
+
+
+

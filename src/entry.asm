@@ -6,11 +6,7 @@ extern kernel_main
 section .text.boot
 __asm_entry_start:
     
-
     call kernel_main
-
-
-
 
 __asm_entry_hang:
     cli
