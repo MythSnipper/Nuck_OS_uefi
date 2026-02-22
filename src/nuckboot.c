@@ -15,7 +15,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     //simple keyboard loop to determine to reset or not to reset the display
     early_display_setting();
 
-    //variables
+    //memory map variables
     UINTN memory_map_size = 0; //size of the memory map in bytes
     UINTN memory_map_size_pages = 0; //size of memory map in pages
     EFI_MEMORY_DESCRIPTOR* memory_map = NULL; //pointer to the UEFI memory map
@@ -41,7 +41,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
 
     uint32_t kernel_image_size_pages;
 
-    EFI_PHYSICAL_ADDRESS lowest_usable_range_addr;
     EFI_PHYSICAL_ADDRESS highest_usable_range_addr;
     EFI_PHYSICAL_ADDRESS kernel_pmm_bitmap_addr;
     uint32_t kernel_pmm_bitmap_size;
@@ -55,13 +54,14 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         L"Select GOP mode(auto)",
         L"Select GOP mode(manual)",
         L"Boot Nuck OS",
+        L"Configure kernel parameters",
         L"View memory map",
         L"View configuration tables",
         L"EFI Shell",
         L"Shutdown",
         L"triple fault"
     };
-    UINTN menu_number_of_entries = 10;
+    UINTN menu_number_of_entries = 11;
     UINTN selected_menu_entry_index = 0;
 
     //clear console output, sets background color, cursor goes to 0, 0
@@ -80,7 +80,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     Print(L"Press any key to continue...");
     while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
 
-    menu_start:
+    //menu start
     selected_menu_entry_index = 0;
     status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, BACKGROUND_COLOR);
     if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut background color in SetAttribute", status);
@@ -91,8 +91,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
     if(EFI_ERROR(status)) crashout(ST, L"Failed to set font color in SetAttribute", status);
 
-    Print(L"---Boot Menu---\r\n");
-    Print(L"   Arrow keys/WASD to move, Enter to select\r\n   Esc to reset bootloader, F12 to RESET bootloader\r\n\n");
+    Print(L"---NuckBoot---\r\n");
+    Print(L"   Arrow keys/WASD to move, Enter to select\r\n   Esc to clear screen, F12 to reset bootloader\r\n\n");
     //save current cursor position because it's where the boot menu text starts
     start_column = ST->ConOut->Mode->CursorColumn;
     start_row = ST->ConOut->Mode->CursorRow;
@@ -106,9 +106,23 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
             if(key.ScanCode == SCAN_F12){
                 goto bootloader_start;
             }
-            //If it's escape then reset bootloader
+            //If it's escape then clear screen
             if(key.ScanCode == SCAN_ESC){
-                goto menu_start;
+                status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, BACKGROUND_COLOR);
+                if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut background color in SetAttribute", status);
+                status = uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
+                if(EFI_ERROR(status)) crashout(ST, L"Failed to clear ConOut screen in ClearScreen", status);
+
+                //sets font color
+                status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
+                if(EFI_ERROR(status)) crashout(ST, L"Failed to set font color in SetAttribute", status);
+
+                Print(L"---NuckBoot---\r\n");
+                Print(L"   Arrow keys/WASD to move, Enter to select\r\n   Esc to clear screen, F12 to reset bootloader\r\n\n");
+                //save current cursor position because it's where the boot menu text starts
+                start_column = ST->ConOut->Mode->CursorColumn;
+                start_row = ST->ConOut->Mode->CursorRow;
+                display_refresh_entries(ST, menu_entries, menu_number_of_entries, selected_menu_entry_index, start_column, start_row);
             }
 
             //Check if it's arrow keys
@@ -129,6 +143,50 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                 switch(selected_menu_entry_index){
                     case 0: {
                         //Auto boot
+                        load_kernel_resources(ST, ImageHandle, &root, loaded_addrs, kernel_stack_size, &kernel_stack, &kernel_image_size_pages);
+                        GOP_auto_select_native(ST, &GOP, &GOP_info, &GOP_info_size, &GOP_selected_mode);
+
+                        //Boot Nuck OS
+                        //kernel PMM stuff
+                        get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
+                        get_memory_map_highest_address(memory_map_size, memory_map, memory_map_descriptor_size, &highest_usable_range_addr);
+
+                        //allocate memory for kernel PMM range
+                        uint32_t heap_size_pages = highest_usable_range_addr/4096;
+                        uint32_t heap_bitmap_size_bytes = (heap_size_pages+7)/8; //1 byte = 8 pages, round up
+                        uint32_t heap_bitmap_size_pages = (heap_bitmap_size_bytes + 4095)/4096; //1 page = 4096 bytes, round up
+                        kernel_pmm_bitmap_size = heap_bitmap_size_pages;
+
+                        status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, heap_bitmap_size_pages, &kernel_pmm_bitmap_addr); //allocate pages for pmm bitmap
+                        if(EFI_ERROR(status)){
+                            Print(L"Can't allocate %d pages for pmm bitmap\r\n", heap_size_pages);
+                            while(1);
+                        }
+                        Print(L"pmm bitmap allocated at address %lx!\r\nheap size: %d, heap bitmap size: %d bytes %d pages\r\n", kernel_pmm_bitmap_addr, heap_size_pages, heap_bitmap_size_bytes, heap_bitmap_size_pages);
+
+                        get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
+                        
+                        //allocate memory for backbuffer
+                        status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderData, GOP->Mode->FrameBufferSize, &backbuffer);
+                        if(EFI_ERROR(status)){
+                            Print(L"Can't allocate %ld bytes for video backbuffer\r\n", GOP->Mode->FrameBufferSize);
+                            while(1);
+                        }
+                        Print(L"Backbuffer: %ld bytes at %lx\r\n", GOP->Mode->FrameBufferSize, backbuffer);
+
+                        Print(L"Say goodbye to UEFI-land!\r\nPress any key to continue...\r\n");
+                        while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
+
+                        //GOP info
+                        uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP_selected_mode, &GOP_info_size, &GOP_info);
+                        if(EFI_ERROR(status)) crashout(ST, L"Can't query GOP mode in QueryMode", status);
+                        
+                        //Set new GOP mode
+                        status = uefi_call_wrapper(GOP->SetMode, 2, GOP, GOP_selected_mode);
+                        if(EFI_ERROR(status)) crashout(ST, L"Unable to get GOP mode in SetMode", status);
+
+                        goto exit_boot_services;
+                        break;
                     }
                     case 1: {
                         load_kernel_resources(ST, ImageHandle, &root, loaded_addrs, kernel_stack_size, &kernel_stack, &kernel_image_size_pages);
@@ -144,35 +202,33 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     }
                     case 4: {
                         //Boot Nuck OS
-
                         //kernel PMM stuff
                         get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
-                        get_memory_map_highlow_address(memory_map_size, memory_map, memory_map_descriptor_size, &lowest_usable_range_addr, &highest_usable_range_addr);
+                        get_memory_map_highest_address(memory_map_size, memory_map, memory_map_descriptor_size, &highest_usable_range_addr);
+
                         //allocate memory for kernel PMM range
-                        uint32_t heap_size_pages = (highest_usable_range_addr-lowest_usable_range_addr)/4096;
-                        uint32_t heap_bitmap_size_bytes = (heap_size_pages+7)/8; //1 byte = 8 pages
-                        uint32_t heap_bitmap_size_pages = (heap_bitmap_size_bytes + 4095)/4096; //1 page = 4096 bytes
+                        uint32_t heap_size_pages = highest_usable_range_addr/4096;
+                        uint32_t heap_bitmap_size_bytes = (heap_size_pages+7)/8; //1 byte = 8 pages, round up
+                        uint32_t heap_bitmap_size_pages = (heap_bitmap_size_bytes + 4095)/4096; //1 page = 4096 bytes, round up
                         kernel_pmm_bitmap_size = heap_bitmap_size_pages;
-                        status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, heap_bitmap_size_pages, &kernel_pmm_bitmap_addr);
-                        Print(L"pmm bitmap allocated at address %X!\r\nheap size: %d, heap bitmap size: %d bytes %d pages\r\n", kernel_pmm_bitmap_addr, heap_size_pages, heap_bitmap_size_bytes, heap_bitmap_size_pages);
+
+                        status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, heap_bitmap_size_pages, &kernel_pmm_bitmap_addr); //allocate pages for pmm bitmap
                         if(EFI_ERROR(status)){
                             Print(L"Can't allocate %d pages for pmm bitmap\r\n", heap_size_pages);
                             while(1);
                         }
-                        get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
-                        get_memory_map_highlow_address(memory_map_size, memory_map, memory_map_descriptor_size, &lowest_usable_range_addr, &highest_usable_range_addr);
+                        Print(L"pmm bitmap allocated at address %lx!\r\nheap size: %d, heap bitmap size: %d bytes %d pages\r\n", kernel_pmm_bitmap_addr, heap_size_pages, heap_bitmap_size_bytes, heap_bitmap_size_pages);
 
-                        //last allocation
+                        get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
+                        
                         //allocate memory for backbuffer
-                        UINTN backbuffer_size = GOP->Mode->Info->PixelsPerScanLine * GOP->Mode->Info->VerticalResolution * 4; //4 bpp
                         status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderData, GOP->Mode->FrameBufferSize, &backbuffer);
-                        Print(L"backbuffer allocated at address %X!\r\n", backbuffer);
                         if(EFI_ERROR(status)){
-                            Print(L"Can't allocate %d bytes for video backbuffer\r\n", GOP->Mode->FrameBufferSize);
+                            Print(L"Can't allocate %ld bytes for video backbuffer\r\n", GOP->Mode->FrameBufferSize);
                             while(1);
                         }
-
-
+                        Print(L"Backbuffer: %ld bytes at %lx\r\n", GOP->Mode->FrameBufferSize, backbuffer);
+                        
                         Print(L"Say goodbye to UEFI-land!\r\nPress any key to continue...\r\n");
                         while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
 
@@ -180,7 +236,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                         uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP_selected_mode, &GOP_info_size, &GOP_info);
                         if(EFI_ERROR(status)) crashout(ST, L"Can't query GOP mode in QueryMode", status);
                         
-                        //Set GOP mode
+                        //Set new GOP mode
                         status = uefi_call_wrapper(GOP->SetMode, 2, GOP, GOP_selected_mode);
                         if(EFI_ERROR(status)) crashout(ST, L"Unable to get GOP mode in SetMode", status);
 
@@ -188,19 +244,24 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                         break;
                     }
                     case 5: {
+                        //configure kernel params
+
+                        break;
+                    }
+                    case 6: {
                         //view mem map
                         get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
                         print_memory_map(ST, memory_map_size, memory_map, memory_map_key, memory_map_descriptor_size, memory_map_descriptor_version);
                         break;
                     }
-                    case 6: {
+                    case 7: {
                         //view config tables
                         print_config_tables(ST);
                         break;
                     }
-                    case 7: {
+                    case 8: {
                         //EFI shell
-                        Print(L"EFI SHELL\r\n");
+                        Print(L"LOADING EFI SHELL\r\n");
                         root = open_volume(ST, ImageHandle); //opens root of filesystem of boot device
 
                         wchar_t* filename = L"EFI\\BOOT\\SHELLX64.EFI";
@@ -225,12 +286,12 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                         }
                         break;
                     }
-                    case 8: {
+                    case 9: {
                         //shutdown
                         uefi_call_wrapper(ST->RuntimeServices->ResetSystem, 4, EfiResetShutdown, EFI_SUCCESS, 0, NULL);
                         break;
                     }
-                    case 9: {
+                    case 10: {
                         //Hard reset
                         triple_fault();
                         break;
@@ -246,16 +307,14 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     Kernel_entry kernel_main = (void*)loaded_addrs[0];
 
     //construct information for kernel
-
     //kernel context table
     KERNEL_CONTEXT_TABLE* ctx; //pointer pointing to copied context table
-    UINTN ctx_size_bytes = sizeof(KERNEL_CONTEXT_TABLE);
-    UINTN ctx_size_pages = (ctx_size_bytes + 4095)/4096;
+    UINTN ctx_size_pages = (sizeof(KERNEL_CONTEXT_TABLE) + 4095)/4096;
 
     //allocate memory to copy ctx to
     status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, ctx_size_pages, &ctx);
     if(EFI_ERROR(status)){
-        Print(L"Can't allocate %d pages for ctx\r\n", ctx_size_pages);
+        Print(L"Can't allocate %d pages for kernel context table\r\n", ctx_size_pages);
         while(1);
     }
 
@@ -280,7 +339,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     ctx->kernelImageStart = loaded_addrs[0];
     ctx->kernelImageSizePages = kernel_image_size_pages;
 
-    ctx->kernelPMMRange.start_addr = (uint8_t*)lowest_usable_range_addr;
     ctx->kernelPMMRange.bitmap = (uint8_t*)kernel_pmm_bitmap_addr;
     ctx->kernelPMMRange.bitmap_size_pages = kernel_pmm_bitmap_size;
 
@@ -347,7 +405,6 @@ void load_kernel_resources(EFI_SYSTEM_TABLE* ST, EFI_HANDLE IH, EFI_FILE_PROTOCO
     uint32_t kernel_stack_size_tmp = kernel_stack_size;
     *root = open_volume(ST, IH);
     
-
     //kernel stack size tmp becomes size of mem range file occupies
     loaded_addrs[0] = load_file_with_stack(ST, *root, L"kernel.bin", &kernel_stack_size_tmp);
     *kernel_size = kernel_stack_size_tmp;
@@ -424,6 +481,40 @@ void GOP_auto_select(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP, E
     status = uefi_call_wrapper((*GOP)->QueryMode, 4, *GOP, best_mode_num, GOP_info_size, GOP_info);
     if(EFI_ERROR(status)) crashout(ST, L"Can't query GOP mode in QueryMode", status);
     Print(L"Selected:\r\nmode %d: %dx%d format %x%s\r\n", best_mode_num, (*GOP_info)->HorizontalResolution, (*GOP_info)->VerticalResolution, (*GOP_info)->PixelFormat, best_mode_num == GOP_native_mode_num ? L"(current)" : L"");
+    *selected_mode_num = best_mode_num;
+}
+
+void GOP_auto_select_native(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP, EFI_GRAPHICS_OUTPUT_MODE_INFORMATION** GOP_info, UINTN* GOP_info_size, UINTN* selected_mode_num){
+    EFI_STATUS status;
+    EFI_BOOT_SERVICES* BS = ST->BootServices;
+    EFI_GUID GOP_GUID = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
+    UINTN GOP_mode_count;
+    UINTN GOP_native_mode_num;
+
+    UINTN best_mode_num = 0;
+    UINTN best_mode_pixel_count = 0;
+    UINTN best_mode_width = 0;
+
+
+    //auto select GOP
+    status = uefi_call_wrapper(BS->LocateProtocol, 3, &GOP_GUID, NULL, (void**) GOP);
+    if(EFI_ERROR(status)) crashout(ST, L"Couldn't locate protocol GOP in LocateProtocol", status);
+    status = uefi_call_wrapper((*GOP)->QueryMode, 4, *GOP, (*GOP)->Mode==NULL?0:(*GOP)->Mode->Mode, GOP_info_size, GOP_info);
+    //get the current video mode
+    if(status == EFI_NOT_STARTED){
+        status = uefi_call_wrapper((*GOP)->SetMode, 2, *GOP, 0);
+        if(EFI_ERROR(status)) crashout(ST, L"Cannot set GOP mode in SetMode", status);
+    }
+    if(EFI_ERROR(status)) crashout(ST, L"Unable to get GOP native mode in QueryMode", status);
+    else{
+        GOP_native_mode_num = (*GOP)->Mode->Mode;
+        GOP_mode_count = (*GOP)->Mode->MaxMode;
+    }
+    Print(L"GOP native mode: %d\r\nGOP number of modes: %d\r\n", GOP_native_mode_num, GOP_mode_count);
+    //query GOP mode
+    status = uefi_call_wrapper((*GOP)->QueryMode, 4, *GOP, GOP_native_mode_num, GOP_info_size, GOP_info);
+    if(EFI_ERROR(status)) crashout(ST, L"Can't query GOP mode in QueryMode", status);
+    Print(L"Selected native:\r\nmode %d: %dx%d format %x%s\r\n", GOP_native_mode_num, (*GOP_info)->HorizontalResolution, (*GOP_info)->VerticalResolution, (*GOP_info)->PixelFormat, L"(current)");
     *selected_mode_num = best_mode_num;
 }
 
@@ -531,7 +622,7 @@ EFI_PHYSICAL_ADDRESS load_file(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wc
 
     close_file(file);
 
-    Print(L"%s loaded at address: %X\r\n", filename, addr);
+    Print(L"%s loaded at address: %lx\r\n", filename, addr);
     return addr;
 }
 
@@ -563,7 +654,7 @@ EFI_PHYSICAL_ADDRESS load_file_with_stack(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCO
 
     close_file(file);
 
-    Print(L"%s loaded with stack at address: %X\r\n", filename, addr);
+    Print(L"%s loaded with stack at address: %lx\r\n", filename, addr);
     return addr;
 }
 
@@ -796,32 +887,25 @@ void print_memory_map(EFI_SYSTEM_TABLE* ST, UINTN memory_map_size, EFI_MEMORY_DE
 
 }
 
-void get_memory_map_highlow_address(UINTN memory_map_size, EFI_MEMORY_DESCRIPTOR* memory_map, UINTN memory_map_descriptor_size, EFI_PHYSICAL_ADDRESS* low, EFI_PHYSICAL_ADDRESS* high){
+void get_memory_map_highest_address(UINTN memory_map_size, EFI_MEMORY_DESCRIPTOR* memory_map, UINTN memory_map_descriptor_size, EFI_PHYSICAL_ADDRESS* high){
     UINTN entries = memory_map_size / memory_map_descriptor_size;
     EFI_MEMORY_DESCRIPTOR* MM = memory_map;
     
-    //highlow est addr of range conventional memory
-    EFI_PHYSICAL_ADDRESS lowest_addr = -1;
+    //highest address in the entire memory map
     EFI_PHYSICAL_ADDRESS highest_addr = 0;
 
     for(UINTN i = 0;i < entries;i++){
         if(MM->Type == EfiConventionalMemory || MM->Type == EfiPersistentMemory){
-            if(MM->PhysicalStart < lowest_addr){
-                lowest_addr = MM->PhysicalStart;
+            if((MM->PhysicalStart + (MM->NumberOfPages*0x1000)) > highest_addr){
+                highest_addr = (MM->PhysicalStart + (MM->NumberOfPages*0x1000));
             }
-            if((MM->PhysicalStart + (MM->NumberOfPages*4096)) > highest_addr){
-                highest_addr = (MM->PhysicalStart + (MM->NumberOfPages*4096));
-            }
-        }  
-        //go to next one
+        }
+        //go to next entry
         MM = (EFI_MEMORY_DESCRIPTOR*)((UINT8*)MM + memory_map_descriptor_size);
     }
-    uint64_t totalRangeSize = (highest_addr-lowest_addr);
-    Print(L"Total managed memory range: 0x%lx - 0x%lx, %f pages/%f GB/%f GiB\r\n", lowest_addr, highest_addr, totalRangeSize/4096.0f, totalRangeSize/1000000000.0f, totalRangeSize/1073741824.0f);
+    Print(L"Total memory range: 0 - 0x%lx, %f pages/%f GB/%f GiB\r\n", highest_addr, highest_addr/4096.0f, highest_addr/1000000000.0f, highest_addr/1073741824.0f);
 
-    *low = lowest_addr;
     *high = highest_addr;
-
 }
 
 void get_memory_map(EFI_SYSTEM_TABLE* ST, UINTN* memory_map_size, UINTN* memory_map_size_pages, EFI_MEMORY_DESCRIPTOR** memory_map, UINTN* memory_map_key, UINTN* memory_map_descriptor_size, UINT32* memory_map_descriptor_version){
@@ -829,7 +913,7 @@ void get_memory_map(EFI_SYSTEM_TABLE* ST, UINTN* memory_map_size, UINTN* memory_
     EFI_BOOT_SERVICES* BS = ST->BootServices;
 
     if((*memory_map) != NULL){
-        Print(L"Freeing previous memory map at %X...\r\n", *memory_map);
+        Print(L"Freeing previous memory map at %lx...\r\n", *memory_map);
         status = uefi_call_wrapper(BS->FreePages, 2, *memory_map, *memory_map_size_pages);
         if(EFI_ERROR(status)) crashout(ST, L"Error freeing previously allocated memory map in func get_memory_map, FreePages", status);
     }

@@ -44,17 +44,20 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     //disable PIC because not useful in the big 2025
     PIC_disable();
     //swap the display buffers so the GOP framebuffer is actually the backbuffer
+    
     {
         EFI_PHYSICAL_ADDRESS backbuf = ctx->fb;
         ctx->fb = ctx->GOP->FrameBufferBase; //set fb to vram
         ctx->GOP->FrameBufferBase = backbuf; //set the GOP address to backbuffer
     }
+    //memcpy((void*)ctx->fb, (void*)ctx->GOP->FrameBufferBase, ctx->GOP->FrameBufferSize);
 
     //make ctx global
     global_ctx = ctx;
 
     //clear screen
     GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
+    update_framebuffer(ctx);
 
     //set GDT entries
     GDTR.size = sizeof(GDT)-1;
@@ -114,13 +117,13 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
     uint8_t versionMajor = 1;
     uint8_t versionMinor = 5;
-
+  
     uint8_t CPUVendor[13];
     cpuid_get_vendor(CPUVendor);
 
     KERNEL_TEXT_OUTPUT title = {Terminus8x16_Bold, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
     KERNEL_TEXT_OUTPUT ConOut = {Terminus8x16_Normal, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
-
+ 
     /*
     for(int i=0;i<256;i++){
         printf(ctx->GOP, &ConOut, "stub %lx: %lx\r\n", &isr_stub_0, (uint64_t)((uint64_t)isr_stub_0)+i*(((uint64_t)isr_stub_1)-(uint64_t)isr_stub_0));
@@ -128,7 +131,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     }
     while(1);
     */
-
 
     //NVIDEO RESOURCES
     KERNEL_NVIDEO bad_apple;
@@ -140,7 +142,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     NVIDEOParseHeader(&nuckos_logo, (uint8_t*) ctx->kernel_resource_addrs[1]);
     NVIDEOParseHeader(&pointer_icon, (uint8_t*) ctx->kernel_resource_addrs[2]);
 
-    
     //MEM ALLOC TESTS
     /*
     heap_init(ctx->heap);   
@@ -189,7 +190,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         GOPDrawRect(ctx->GOP, 0, 3*screenYFraction, screenX, 4*screenYFraction - 1, hex(0xF7A8B8), fill);
         GOPDrawRect(ctx->GOP, 0, 4*screenYFraction, screenX, 5*screenYFraction - 1, hex(0x55CDFC), fill);
         */
-        GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x00807F), true);
+        GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x34e5eb), true);
         
         printf(ctx->GOP, &ConOut, "(operating system of the future)\r\n");
         printf(ctx->GOP, &ConOut, "Display pixel format: %d\r\n", ctx->GOP->Info->PixelFormat);
@@ -273,15 +274,15 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
 
         //copy framebuffer
-        memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
+        update_framebuffer(ctx);
 
         //do this to test interrupts i guess
-        break;
+        //break;
     }
 
     GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x20207F), true);
     printf(ctx->GOP, &title, "interrupting...\r\n");
-    memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
+    update_framebuffer(ctx);
     
     asm volatile(
         ".intel_syntax noprefix\n"
@@ -298,95 +299,30 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         ".att_syntax\n"
     );
     
-
     //printf(ctx->GOP, &title, "Done!\r\n");
-    memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
+    update_framebuffer(ctx);
     while(true);
 }
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+void update_framebuffer(KERNEL_CONTEXT_TABLE* ctx){
+    UINT8* dst = (UINT8*)ctx->GOP->FrameBufferBase;
+    UINT8* src = (UINT8*)ctx->fb;
+
+    UINTN width  = ctx->GOP->Info->HorizontalResolution;
+    UINTN height = ctx->GOP->Info->VerticalResolution;
+    UINTN pitch  = ctx->GOP->Info->PixelsPerScanLine * 4; // 4 bytes per pixel (RGBA)
+
+    UINTN row_bytes = width * 4;
+
+    for (UINTN y = 0; y < height; y++) {
+        UINT8* dst_row = dst + (y * pitch);
+        UINT8* src_row = src + (y * row_bytes);
+
+        memcpy(dst_row, src_row, row_bytes);
+    }
+}
 
 
 
@@ -626,8 +562,6 @@ uint8_t cmpGUID(EFI_GUID* guid1, EFI_GUID* guid2){
     return 1;
 }
 
-
-
 //PIC functions
 static inline void PIC_disable(){
     outb(0x21, 0xff); //mask master PIC
@@ -755,7 +689,6 @@ void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut){
     }
 }
 */
-
 
 //GDT/IDT functions, general functions
 void GDT_set_entry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags){
@@ -1100,10 +1033,27 @@ void GOPPutPixel(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t color){
     if(x >= xMax || y >= yMax){
         return;
     }
-    uint8_t* fb = (uint8_t*) GOP->FrameBufferBase;
-    uint32_t ppl = (uint32_t) GOP->Info->PixelsPerScanLine;
-    uint8_t* fb_addr = (uint8_t*)(fb + 4 * y * ppl + 4 * x);
-    *((uint32_t*)fb_addr) = color;
+
+    uint32_t* fb = (uint32_t*) GOP->FrameBufferBase;
+    uint32_t pitch = (uint32_t) GOP->Info->PixelsPerScanLine;
+
+    uint8_t r = (color >> 16) & 0xFF;
+    uint8_t g = (color >> 8) & 0xFF;
+    uint8_t b = color & 0xFF;
+
+    uint32_t pixel;
+    if(GOP->Info->PixelFormat == PixelBitMask){
+        pixel =
+            ((r << GOP->Info->PixelInformation.RedMask)   & GOP->Info->PixelInformation.RedMask) |
+            ((g << GOP->Info->PixelInformation.GreenMask) & GOP->Info->PixelInformation.GreenMask) |
+            ((b << GOP->Info->PixelInformation.BlueMask)   & GOP->Info->PixelInformation.BlueMask);
+    }
+    else{
+        //ARGB 32-bit
+        pixel = (b) | (g << 8) | (r << 16);
+    }
+
+    fb[y * pitch + x] = pixel;
 
 }
 uint32_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a){
@@ -1241,6 +1191,7 @@ void* memcpy(void* source, void* dest, uint64_t size){
     }
     return dest;
 }
+
 void cpuid(int code, uint32_t* a, uint32_t* d){
     asm volatile("cpuid" : "=a"(*a), "=d"(*d) : "0"(code) : "ebx", "ecx");
 }
@@ -1260,26 +1211,6 @@ uint64_t rdtsc(){
     asm volatile("rdtsc":"=a"(low),"=d"(high));
     return ((uint64_t)high << 32) | low;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 //fonts
     uint8_t VGAfont[] = {

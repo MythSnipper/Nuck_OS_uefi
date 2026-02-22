@@ -47,7 +47,6 @@ typedef struct{
 } KERNEL_NVIDEO;
 
 typedef struct{
-    uint8_t*                           start_addr;
     uint8_t*                           bitmap;
     uint32_t                           bitmap_size_pages;
 } KERNEL_PMM_RANGE;
@@ -119,7 +118,11 @@ extern IDT_Descriptor IDTR;
 
 void IDT_initialize(uint16_t segment, uint8_t IST);
 void IDT_set_entry(uint8_t vector, void* isr, uint8_t attrs, uint16_t segment, uint8_t IST);
-//IDT ---------------------------------------
+//IDT END---------------------------------------
+
+void update_framebuffer(KERNEL_CONTEXT_TABLE* ctx);
+
+
 
 
 void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con);
