@@ -43,7 +43,7 @@ typedef struct{
     uint32_t width;
     uint32_t height;
     uint32_t frameCount;
-    uint32_t frameCounter;
+    uint32_t frameCounter; //goes from 0 to frameCount-1
 } KERNEL_NVIDEO;
 
 typedef struct{

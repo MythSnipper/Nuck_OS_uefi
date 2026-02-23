@@ -1,0 +1,27 @@
+.nvideo specifications:
+
+pointer to start of loaded file: ptr
+HEADER:
+    format number(uint32_t):
+    0: black and white, 1 bit per pixel, contiguous bitmap
+    1: black and white, RLE, using int32_t, if negative it is black
+
+
+    frame width in pixels(uint32_t):
+
+    frame height in pixels(uint32_t):
+
+    frame count(uint32_t):
+
+
+
+DATA:
+    frame data begin at offset 16
+    (ptr+16)
+
+
+
+
+
+
+

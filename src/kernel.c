@@ -179,8 +179,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         ConOut = (KERNEL_TEXT_OUTPUT){Terminus8x16_Normal, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
         //clear screen
         GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
+        
         /*
-
         bool fill = true;
         uint32_t screenX = ctx->GOP->Info->HorizontalResolution - 1;
         uint32_t screenYFraction = ctx->GOP->Info->VerticalResolution / 5;
@@ -195,7 +195,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         printf(ctx->GOP, &ConOut, "(operating system of the future)\r\n");
         printf(ctx->GOP, &ConOut, "Display pixel format: %d\r\n", ctx->GOP->Info->PixelFormat);
         printf(ctx->GOP, &ConOut, "CPU Vendor: %s\r\n", CODE_SEG, DATA_SEG, &CPUVendor);
-        printf(ctx->GOP, &ConOut, "Video resolution: %dx%d / format %d / frame %d/%d\r\n", bad_apple.width, bad_apple.height, bad_apple.format, bad_apple.frameCounter+1, bad_apple.frameCount);
+        printf(ctx->GOP, &ConOut, "Video resolution: %dx%d / format %d \r\n/ frame %d/%d\r\n", bad_apple.width, bad_apple.height, bad_apple.format, bad_apple.frameCounter+1, bad_apple.frameCount);
 
         printf(ctx->GOP, &title, "N");
         title.frontColor = 0xFF8D00;title.backColor = 0x000000;
@@ -227,7 +227,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         printf(ctx->GOP, &ConOut, "size of stuff: %u + %u\r\n", sizeof(*ctx), ctx->MemoryMapSizeBytes);
 
         //logo
-        GOPDrawImage(ctx->GOP, ctx->GOP->Info->HorizontalResolution - nuckos_logo.width - 10, ctx->GOP->Info->VerticalResolution - nuckos_logo.height - 10, &nuckos_logo);
+        //GOPDrawImage(ctx->GOP, ctx->GOP->Info->HorizontalResolution - nuckos_logo.width - 10, ctx->GOP->Info->VerticalResolution - nuckos_logo.height - 10, &nuckos_logo);
 
         //PS/2 input
         /*
@@ -267,11 +267,9 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         */
 
         //pointer icon
-        GOPDrawImage(ctx->GOP, pointerX, pointerY, &pointer_icon);
-
+        //GOPDrawImage(ctx->GOP, pointerX, pointerY, &pointer_icon);
 
         GOPPlayVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - bad_apple.width, 0, &bad_apple, true);
-
 
         //copy framebuffer
         update_framebuffer(ctx);
@@ -304,8 +302,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     while(true);
 }
 
-
-
 void update_framebuffer(KERNEL_CONTEXT_TABLE* ctx){
     UINT8* dst = (UINT8*)ctx->GOP->FrameBufferBase;
     UINT8* src = (UINT8*)ctx->fb;
@@ -323,8 +319,6 @@ void update_framebuffer(KERNEL_CONTEXT_TABLE* ctx){
         memcpy(dst_row, src_row, row_bytes);
     }
 }
-
-
 
 //NEW physical memory manager related functions
 void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con){
@@ -424,7 +418,6 @@ void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con){
     printf(ctx->GOP, Con, "Total mapped memory: %d pages/%f GB/%f GiB\r\n", totalMapped, totalMapped/250000.0f, totalMapped/262144.0f);
     printf(ctx->GOP, Con, "Total usable memory: %d pages/%f GB/%f GiB\r\n", totalUsable, totalUsable/250000.0f, totalUsable/262144.0f);
 }
-
 
 //config table related functions
 void* getConfigTable(EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries, uint8_t tableindex){
@@ -726,41 +719,100 @@ void GOPPlayVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bo
     if(video->frameCounter >= video->frameCount){
         return;
     }
-    uint8_t* addr = (uint8_t*)(video->addr);
     switch(video->format){
-        case 0: { //black and white, packed
-            video->addr = video->addr + ((video->frameCounter) * (video->width * video->height / 8));
+        case 0: { //black and white, bitmap
+            uint8_t* addr = (uint8_t*)(video->addr); //store original address
+            video->addr = video->addr + ((video->frameCounter) * (((video->width+7) / 8) * video->height));
             GOPDrawImage(GOP, x, y, video);
             video->addr = addr;
+
+            (video->frameCounter)++;
+            if(video->frameCounter >= video->frameCount && loop){
+                video->frameCounter = 0;
+            }
             break;
         }
-    }
-    (video->frameCounter)++;
-    if(video->frameCounter >= video->frameCount && loop){
-        video->frameCounter = 0;
+        case 1: { //black and white, RLE
+            uint8_t* p = video->addr; //start of stream
+
+            //skip frames before target frame
+            for(uint32_t f = 0; f < video->frameCounter; f++){
+                uint32_t pixels = 0;
+                while(pixels < video->width * video->height){
+                    int16_t run = *(int16_t*)p;
+                    p += sizeof(int16_t);
+
+                    int count = run < 0 ? -run : run;
+                    pixels += count;
+                }
+            }
+
+            //Now p points to start of current frame’s runs
+            uint8_t* addr = (uint8_t*)(video->addr);
+            video->addr = p;
+            GOPDrawImage(GOP, x, y, video);
+
+            video->addr = addr; //restore original address
+
+            (video->frameCounter)++;
+            if(video->frameCounter >= video->frameCount && loop){
+                video->frameCounter = 0;
+            }
+            break;
+        }
     }
 }
 void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* img){
     switch(img->format){
         case 0: { //black and white, packed, imgwidth is number of pixels, imgheight is number of pixels
-            uint32_t bpr = img->width/8; //bytes per row
-            for(uint32_t row = 0;row < img->height;row++){
-                for(uint32_t byte = 0;byte < bpr;byte++){
-                    //calculate byte
+            uint32_t bpr = (img->width + 7) / 8; // bytes per row
+
+            for(uint32_t row = 0; row < img->height; row++){
+                for(uint32_t byte = 0; byte < bpr; byte++){
                     uint8_t b = img->addr[row * bpr + byte];
                     uint32_t draw_x = x + byte * 8;
                     uint32_t draw_y = y + row;
-                    //draw 8 pixels
-                    for(int8_t shift = 7;shift >= 0;shift--){
+
+                    //compute how many bits to draw in this byte
+                    uint8_t bits_in_byte = 8;
+
+                    //if this is the last byte in the row, clamp to remaining pixels
+                    if(byte == bpr - 1){
+                        uint32_t rem = img->width % 8;
+                        if (rem != 0) bits_in_byte = rem;
+                    }
+
+                    // draw only the valid bits
+                    for(int8_t shift = 7; shift >= 8 - bits_in_byte; shift--){
                         uint32_t mask = 1 << shift;
                         uint32_t color = (b & mask) ? 0xFFFFFFFF : 0xFF000000;
-                        GOPPutPixel(GOP, draw_x + (7-shift), draw_y, color);
+                        GOPPutPixel(GOP, draw_x + (7 - shift), draw_y, color);
                     }
                 }
             }
             break;
         }
-        case 1: { //RGB 3 byte per pixel
+        case 1: { //RLE, cutoff at frame end
+            uint8_t* p = img->addr;
+            uint32_t pixel = 0;
+            uint32_t total = img->width * img->height;
+
+            while(pixel < total){
+                int16_t run = *(int16_t*)p;
+                p += sizeof(int16_t);
+
+                int count = run < 0 ? -run : run;
+                uint32_t color = (run < 0) ? 0xFF000000 : 0xFFFFFFFF;
+
+                for(int i=0; i < count && pixel < total; i++, pixel++){
+                    uint32_t px = pixel % img->width;
+                    uint32_t py = pixel / img->width;
+                    GOPPutPixel(GOP, x + px, y + py, color);
+                }
+            }
+            break;
+        }
+        case 2: { //RGB 3 byte per pixel
             uint32_t bpr = img->width * 3; //bytes per row
             for(uint32_t row = 0;row < img->height;row++){
                 for(uint32_t col = 0;col < img->width;col++){
@@ -774,7 +826,7 @@ void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* img){
             }
             break;
         }
-        case 2: { //ARGB 4 byte per pixel, alpha 0 = transparent
+        case 3: { //ARGB 4 byte per pixel, alpha 0 = transparent
             uint32_t bpr = img->width * 4; //bytes per row
             for(uint32_t row = 0;row < img->height;row++){
                 for(uint32_t col = 0;col < img->width;col++){

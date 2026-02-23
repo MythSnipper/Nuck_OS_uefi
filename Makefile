@@ -32,7 +32,8 @@ CFLAGS =\
 -fno-stack-check \
 -fshort-wchar \
 -mno-red-zone \
--maccumulate-outgoing-args
+-maccumulate-outgoing-args \
+-O3
 
 LDFLAGS =\
 -shared \
@@ -74,7 +75,7 @@ KERNEL_CFLAGS =\
 -m64 \
 -mno-red-zone \
 -Ignu-efi/inc \
--O0
+-O3
 
 KERNEL_LDFLAGS =\
 -T src/kernel.ld \
