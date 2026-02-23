@@ -116,7 +116,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     //printd("\r\nIDT loaded!\r\n");
 
     uint8_t versionMajor = 1;
-    uint8_t versionMinor = 5;
+    uint8_t versionMinor = 6;
   
     uint8_t CPUVendor[13];
     cpuid_get_vendor(CPUVendor);
@@ -614,6 +614,8 @@ void subpage_alloc_expand(KERNEL_SUBPAGE_ALLOCATOR* alloc){
     *alloc->freeListEnd = (uint64_t)newListStart; //end of old last subpage points to first new subpage
     alloc->freeListEnd = (uint64_t*)newListEnd;
 }
+
+
 
 void heap_init(KERNEL_HEAP* heap){
     //zero out heap map
