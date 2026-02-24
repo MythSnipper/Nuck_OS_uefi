@@ -1,0 +1,14 @@
+/home/mythsnipper/Dev/os64n/scripts/convert-nvideo/target/release/deps/thiserror-4754c9186b0ca9e6.d: /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /home/mythsnipper/Dev/os64n/scripts/convert-nvideo/target/release/build/thiserror-585c62d750290d8a/out/private.rs
+
+/home/mythsnipper/Dev/os64n/scripts/convert-nvideo/target/release/deps/libthiserror-4754c9186b0ca9e6.rlib: /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /home/mythsnipper/Dev/os64n/scripts/convert-nvideo/target/release/build/thiserror-585c62d750290d8a/out/private.rs
+
+/home/mythsnipper/Dev/os64n/scripts/convert-nvideo/target/release/deps/libthiserror-4754c9186b0ca9e6.rmeta: /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /home/mythsnipper/Dev/os64n/scripts/convert-nvideo/target/release/build/thiserror-585c62d750290d8a/out/private.rs
+
+/home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs:
+/home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs:
+/home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs:
+/home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs:
+/home/mythsnipper/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs:
+/home/mythsnipper/Dev/os64n/scripts/convert-nvideo/target/release/build/thiserror-585c62d750290d8a/out/private.rs:
+
+# env-dep:OUT_DIR=/home/mythsnipper/Dev/os64n/scripts/convert-nvideo/target/release/build/thiserror-585c62d750290d8a/out
