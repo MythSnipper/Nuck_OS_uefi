@@ -3,14 +3,7 @@
 //global vars
 KERNEL_CONTEXT_TABLE* global_ctx;
 
-__attribute__((aligned(0x10)))
-GDT_Entry GDT[3];
-GDT_Descriptor GDTR;
 
-
-
-
-//IDT --------------------------
 
 void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
@@ -32,59 +25,12 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
     update_framebuffer(ctx);
 
-    //set GDT entries
-    GDTR.size = sizeof(GDT)-1;
-    GDTR.offset = GDT;
+    uint8_t CODE_SEG;
+    uint8_t DATA_SEG;
 
-    GDT_set_entry(&GDT[0], 0, 0, 0, 0); //null descriptor right here le
+    GDT_initialize(&CODE_SEG, &DATA_SEG);
 
-    GDT_set_entry(&GDT[1], 0, 0, //Code segment, base and limit 0 because long mode
-    0b10011010, //Access:present, ring 0, non system segment(code/data segment), executable(code segment), non conforming, readable, access
-    0b1010 //granularity: page granularity(not byte), size flag(0 because long mode), long mode code, reserved
-    );
-
-    GDT_set_entry(&GDT[2], 0, 0, //Data segment, base and limit 0 because long mode
-    0b10010010, //Access:present, ring 0, non system segment(code/data segment), non executable(data segment), up direction, writable, access
-    0b1000 //granularity: page granularity(not byte), size flag(0 because long mode data), not long mode code, reserved
-    );
-
-    //load the GDT
-    asm volatile(
-        ".intel_syntax noprefix\n"
-        "lgdt [%[gdt]]\n"
-        "push 0x08\n"
-        "lea rax, [rip+__long_jump_after_loading_gdt]\n"
-        "push rax\n"
-        "retfq\n"
-        "__long_jump_after_loading_gdt:\n"
-        "mov ax, 0x10\n"
-        "mov ds, ax\n"
-        "mov es, ax\n"
-        "mov fs, ax\n"
-        "mov gs, ax\n"
-        "mov ss, ax\n"
-        ".att_syntax\n"
-        :
-        : [gdt] "r"(&GDTR)
-        : "memory", "rax"
-    );
-    //printd("GDT loaded!\r\n");
-
-    uint8_t CODE_SEG = 0x08;
-    uint8_t DATA_SEG = 0x10;
-
-    //todo: load idt
     IDT_initialize(CODE_SEG, 0);
-    
-    asm volatile(
-        ".intel_syntax noprefix\n"
-        "lidt [%[idt]]\n"
-        "sti\n"
-        ".att_syntax\n"
-        :
-        : [idt] "r"(&IDTR)
-        : "memory"
-    );
 
     //printd("\r\nIDT loaded!\r\n");
 
@@ -658,15 +604,6 @@ void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut){
 }
 */
 
-//GDT/IDT functions, general functions
-void GDT_set_entry(GDT_Entry* entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags){
-    entry->limit_low = (uint16_t)(limit & 0xFFFF);
-    entry->base_low = (uint16_t)(base & 0xFFFF);
-    entry->base_mid = (uint8_t)((base >> 16) & 0xFF);
-    entry->access = access;
-    entry->limit__flags = (uint8_t)(((limit >> 16) & 0xF) | (flags << 4));
-    entry->base_high = (uint8_t)(base >> 24);
-}
 void triple_fault(){
     uint64_t egg = 0;
     asm volatile (

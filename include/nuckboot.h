@@ -64,8 +64,6 @@ typedef struct{
 } KERNEL_CONTEXT_TABLE;
 
 
-
-
 void crashout(EFI_SYSTEM_TABLE* ST, wchar_t* error, EFI_STATUS code);
 void early_display_setting();
 void load_kernel_resources(EFI_SYSTEM_TABLE* ST, EFI_HANDLE IH, EFI_FILE_PROTOCOL** root, EFI_PHYSICAL_ADDRESS loaded_addrs[], uint64_t kernel_stack_size, EFI_PHYSICAL_ADDRESS* kernel_stack, uint32_t* kernel_size);
@@ -75,7 +73,7 @@ void GOP_manual_select(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP,
 
 void display_refresh_entries(EFI_SYSTEM_TABLE* ST, wchar_t* menu_entries[], UINTN menu_number_of_entries, UINTN selected_menu_entry_index, UINTN start_column, UINTN start_row);
 EFI_PHYSICAL_ADDRESS load_file(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename);
-EFI_PHYSICAL_ADDRESS load_file_with_stack(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename, uint32_t* stack_size);
+EFI_PHYSICAL_ADDRESS load_kernel_with_stack(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename, uint32_t* stack_size);
 void close_file(EFI_FILE_PROTOCOL* file);
 UINT64 get_file_size(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* file, wchar_t* filename);
 EFI_FILE_PROTOCOL* open_file(EFI_FILE_PROTOCOL* volume, CHAR16* filename);

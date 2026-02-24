@@ -406,7 +406,7 @@ void load_kernel_resources(EFI_SYSTEM_TABLE* ST, EFI_HANDLE IH, EFI_FILE_PROTOCO
     *root = open_volume(ST, IH);
     
     //kernel stack size tmp becomes size of mem range file occupies
-    loaded_addrs[0] = load_file_with_stack(ST, *root, L"kernel.bin", &kernel_stack_size_tmp);
+    loaded_addrs[0] = load_kernel_with_stack(ST, *root, L"kernel.bin", &kernel_stack_size_tmp);
     *kernel_size = kernel_stack_size_tmp;
     //calculate kernel stack top addr from this info
     *kernel_stack = loaded_addrs[0] + kernel_stack_size_tmp * 0x1000;
@@ -627,13 +627,13 @@ EFI_PHYSICAL_ADDRESS load_file(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wc
 }
 
 //takes in stack size, returns (total size of the file + stack) in pages
-EFI_PHYSICAL_ADDRESS load_file_with_stack(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename, uint32_t* stack_size){
+EFI_PHYSICAL_ADDRESS load_kernel_with_stack(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename, uint32_t* stack_size){
     EFI_BOOT_SERVICES* BS = ST->BootServices;
     EFI_STATUS status;
     EFI_FILE_PROTOCOL* file;
     UINTN size;
     UINTN pages;
-    EFI_PHYSICAL_ADDRESS addr;
+    EFI_PHYSICAL_ADDRESS addr = 0x100000;
 
     file = open_file(root, filename);
     size = get_file_size(ST, file, filename);
@@ -645,8 +645,10 @@ EFI_PHYSICAL_ADDRESS load_file_with_stack(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCO
 
     *stack_size = pages;
     // Allocate pages at address
-    status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, pages, &addr);
-    if(EFI_ERROR(status)) crashout(ST, L"Cannot allocate pages in func load_file, AllocatePages", status);
+    status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAddress, EfiLoaderData, pages, &addr);
+    if(EFI_ERROR(status)){
+        crashout(ST, L"Cannot allocate pages at 0x100000 in func load_kernel_with_stack, AllocatePages", status);
+    }
 
     // Read kernel binary into memory
     status = uefi_call_wrapper(file->Read, 3, file, &size, (void*)addr);
@@ -654,7 +656,7 @@ EFI_PHYSICAL_ADDRESS load_file_with_stack(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCO
 
     close_file(file);
 
-    Print(L"%s loaded with stack at address: %lx\r\n", filename, addr);
+    Print(L"%s loaded with stack at address: 0x%lx\r\n", filename, addr);
     return addr;
 }
 

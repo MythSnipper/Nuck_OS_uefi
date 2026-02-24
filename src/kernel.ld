@@ -1,8 +1,7 @@
 ENTRY(__asm_entry_start)
 
 SECTIONS {
-    /* Start at offset 0, position-independent */
-    . = 0;
+    . = 0x100000;
 
     /* Code section: contains executable kernel code */
     .text ALIGN(4096) : {

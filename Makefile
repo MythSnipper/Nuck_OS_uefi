@@ -89,6 +89,7 @@ build/kernel_entry.o \
 build/kernel.o \
 build/isr_asm.o \
 build/isr.o \
+build/gdt.o \
 build/idt.o \
 build/ps2.o
 
@@ -120,9 +121,9 @@ build:
 	nasm -f elf64 src/isr.asm -o build/isr_asm.o
 	$(KERNEL_CC) $(KERNEL_CFLAGS) -mgeneral-regs-only -c src/isr.c -o build/isr.o
 
+	$(KERNEL_CC) $(KERNEL_CFLAGS) -c src/gdt.c -o build/gdt.o
 	$(KERNEL_CC) $(KERNEL_CFLAGS) -c src/idt.c -o build/idt.o
 	$(KERNEL_CC) $(KERNEL_CFLAGS) -c src/ps2.c -o build/ps2.o
-
 
 
 	#link kernel as ELF64 object

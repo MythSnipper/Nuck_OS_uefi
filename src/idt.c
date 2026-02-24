@@ -1,5 +1,5 @@
+#define IDT_HELPER
 #include "../include/idt.h"
-#include "../include/kernel.h"
 
 //IDT --------------------------
 __attribute__((aligned(0x10)))IDT_Entry IDT[256];
@@ -14,21 +14,23 @@ void IDT_initialize(uint16_t segment, uint8_t IST){
     IDTR.offset = (uint64_t)&IDT;
 
     for(int i=0;i<256;i++){
-        IDT_set_entry(i, global_ctx->kernelImageStart + isr_table[i], 0x8E, segment, IST);
+        IDT_set_entry(i, isr_table[i], 0x8E, segment, IST);
     }
+
+    //load IDT
+    asm volatile(
+        ".intel_syntax noprefix\n"
+        "lidt [%[idt]]\n"
+        "sti\n"
+        ".att_syntax\n"
+        :
+        : [idt] "r"(&IDTR)
+        : "memory"
+    );
+
+
 }
 
-//sets entry in the IDT table, uses global IDT
-void IDT_set_entry(uint8_t vector, void* isr, uint8_t attrs, uint16_t segment, uint8_t IST){
-    IDT_Entry* descriptor = &IDT[vector];
 
-    descriptor->offset_low = (uint64_t)isr & 0xFFFF;
-    descriptor->segment = segment;
-    descriptor->ist = IST & 0b111;
-    descriptor->attributes = attrs;
-    descriptor->offset_mid = ((uint64_t)isr >> 16) & 0xFFFF;
-    descriptor->offset_high = ((uint64_t)isr >> 32) & 0xFFFFFFFF;
-    descriptor->reserved = 0;
-}
 
 

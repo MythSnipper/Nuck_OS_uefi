@@ -4,23 +4,10 @@
 #include <efi.h>
 #include <efilib.h>
 
+#include "../include/gdt.h"
 #include "../include/idt.h"
 #include "../include/ps2.h"
 #include "../include/port_io.h"
-
-typedef struct __attribute__((packed)) {
-    uint16_t limit_low;
-    uint16_t base_low;
-    uint8_t  base_mid;
-    uint8_t  access;
-    uint8_t  limit__flags;
-    uint8_t  base_high;
-} GDT_Entry;
-
-typedef struct __attribute__((packed)) {
-    uint16_t size; //gdt size - 1
-    GDT_Entry* offset; //gdt start
-} GDT_Descriptor;
 
 typedef struct{
     uint8_t* font;
@@ -93,12 +80,8 @@ extern uint8_t Terminus8x16_Normal[];
 extern uint8_t Terminus8x16_Bold[];
 
 extern KERNEL_CONTEXT_TABLE* global_ctx;
-extern GDT_Descriptor GDTR;
 
 void update_framebuffer(KERNEL_CONTEXT_TABLE* ctx);
-
-
-
 
 void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con);
 
