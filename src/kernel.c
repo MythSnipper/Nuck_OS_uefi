@@ -983,6 +983,8 @@ void GOPDrawRect(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t co
         }
     }
 }
+
+
 static inline void GOPPutPixel(uint32_t x, uint32_t y, uint32_t pixel){
     /*
     //check if x and y are legal
@@ -1130,20 +1132,6 @@ void printd(char* str, ...){
     va_end(args);
     update_framebuffer();
 }
-
-
-void mark_dirty_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h){
-    uint32_t tx0 = x / global_ctx->dirty_tile_size;
-    uint32_t ty0 = y / global_ctx->dirty_tile_size;
-
-    uint32_t tx1 = (x + w - 1) / TILE_W;
-    uint32_t ty1 = (y + h - 1) / TILE_H;
-
-    for (uint32_t ty = ty0; ty <= ty1; ty++)
-    for (uint32_t tx = tx0; tx <= tx1; tx++)
-    dirty[ty][tx] = 1;
-}
-
 
 //general functions
 void* kmemcpy(void* dest, const void* source, uint64_t size){

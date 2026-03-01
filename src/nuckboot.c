@@ -696,7 +696,6 @@ EFI_PHYSICAL_ADDRESS load_kernel_elf(EFI_FILE_PROTOCOL* root, wchar_t* filename,
     status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderCode, filesize, &elf_buffer);
     if(EFI_ERROR(status)) crashout(L"Cannot allocate pool in func load_kernel_elf, AllocatePool", status);
     
-
     // Read kernel binary into memory
     status = uefi_call_wrapper(file->Read, 3, file, &filesize, (void*)elf_buffer);
     if(EFI_ERROR(status)) crashout(L"Failed to read file in func load_file, Read", status);
@@ -852,6 +851,12 @@ EFI_PHYSICAL_ADDRESS load_kernel_elf(EFI_FILE_PROTOCOL* root, wchar_t* filename,
     *stack_size = (uint64_t)stack_addr + (*stack_size * 0x1000); //return through recycled pointer
 
     Print(L"Kernel stack top: %lx\n", *stack_size);
+
+
+    //deallocate elf_buffer
+    status = uefi_call_wrapper(BS->FreePool, 1, &elf_buffer);
+    if(EFI_ERROR(status)) crashout(L"Cannot free pool in func load_kernel_elf, FreePool", status);
+
 
     return kernel_entry;
 }
