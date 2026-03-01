@@ -1,16 +1,19 @@
 #include "../include/nuckboot.h"
 
+EFI_HANDLE IH;
+EFI_STATUS status;
+EFI_INPUT_KEY key;
+
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable){
-    EFI_SYSTEM_TABLE* ST = SystemTable;
-    EFI_BOOT_SERVICES* BS = ST->BootServices;
-    EFI_INPUT_KEY key;
-    EFI_STATUS status;
+    ST = SystemTable;
+    IH = ImageHandle;
+    BS = ST->BootServices;
  
     InitializeLib(ImageHandle, ST); //initialize runtime pointers
     bootloader_start:
     //disable watchdog timer
     status = uefi_call_wrapper(BS->SetWatchdogTimer, 4, 0, 0, 0, NULL);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to disable watchdog timer in SetWatchdogTimer", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to disable watchdog timer in SetWatchdogTimer", status);
 
     //simple keyboard loop to determine to reset or not to reset the display
     early_display_setting();
@@ -29,17 +32,24 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     EFI_PHYSICAL_ADDRESS loaded_addrs[4]; //kernel, bad apple, nuckos logo, pointer icon
 
     //GOP variables
-    EFI_GRAPHICS_OUTPUT_PROTOCOL* GOP; 
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* GOP;
     EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* GOP_info;
     UINTN GOP_info_size;
     UINTN GOP_selected_mode = 0;
+
+    EFI_PHYSICAL_ADDRESS tilemap_addr;
+    uint64_t tiles_x;
+    uint64_t tiles_y;
+    uint64_t tile_size;
+
+
+
+
 
 
     EFI_PHYSICAL_ADDRESS backbuffer;  //backbuffer
     EFI_PHYSICAL_ADDRESS kernel_stack; //kernel stack
     uint32_t kernel_stack_size = 512; //size in pages, 2 MiB stack
-
-    uint32_t kernel_image_size_pages;
 
     EFI_PHYSICAL_ADDRESS highest_usable_range_addr;
     EFI_PHYSICAL_ADDRESS kernel_pmm_bitmap_addr;
@@ -53,6 +63,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         L"Load Nuck OS kernel and data",
         L"Select GOP mode(auto)",
         L"Select GOP mode(manual)",
+        L"Set GOP mode to selected",
         L"Boot Nuck OS",
         L"Configure kernel parameters",
         L"View memory map",
@@ -61,21 +72,21 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         L"Shutdown",
         L"triple fault"
     };
-    UINTN menu_number_of_entries = 11;
+    UINTN menu_number_of_entries = 12;
     UINTN selected_menu_entry_index = 0;
 
     //clear console output, sets background color, cursor goes to 0, 0
     status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, BACKGROUND_COLOR);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut background color attribute in SetAttribute", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to set ConOut background color attribute in SetAttribute", status);
     status = uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to clear ConOut screen in ClearScreen", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to clear ConOut screen in ClearScreen", status);
 
     //sets font color
     status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut font color in SetAttribute", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to set ConOut font color in SetAttribute", status);
 
-    print_logo(ST);
-    print_info(ST);
+    print_logo();
+    print_info();
 
     Print(L"Press any key to continue...");
     while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
@@ -83,20 +94,20 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     //menu start
     selected_menu_entry_index = 0;
     status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, BACKGROUND_COLOR);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut background color in SetAttribute", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to set ConOut background color in SetAttribute", status);
     status = uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to clear ConOut screen in ClearScreen", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to clear ConOut screen in ClearScreen", status);
 
     //sets font color
     status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to set font color in SetAttribute", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to set font color in SetAttribute", status);
 
     Print(L"---NuckBoot---\r\n");
     Print(L"   Arrow keys/WASD to move, Enter to select\r\n   Esc to clear screen, F12 to reset bootloader\r\n\n");
     //save current cursor position because it's where the boot menu text starts
     start_column = ST->ConOut->Mode->CursorColumn;
     start_row = ST->ConOut->Mode->CursorRow;
-    display_refresh_entries(ST, menu_entries, menu_number_of_entries, selected_menu_entry_index, start_column, start_row);
+    display_refresh_entries(menu_entries, menu_number_of_entries, selected_menu_entry_index, start_column, start_row);
 
     while(true){
         //keyboard input
@@ -109,20 +120,20 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
             //If it's escape then clear screen
             if(key.ScanCode == SCAN_ESC){
                 status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, BACKGROUND_COLOR);
-                if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut background color in SetAttribute", status);
+                if(EFI_ERROR(status)) crashout(L"Failed to set ConOut background color in SetAttribute", status);
                 status = uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
-                if(EFI_ERROR(status)) crashout(ST, L"Failed to clear ConOut screen in ClearScreen", status);
+                if(EFI_ERROR(status)) crashout(L"Failed to clear ConOut screen in ClearScreen", status);
 
                 //sets font color
                 status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
-                if(EFI_ERROR(status)) crashout(ST, L"Failed to set font color in SetAttribute", status);
+                if(EFI_ERROR(status)) crashout(L"Failed to set font color in SetAttribute", status);
 
                 Print(L"---NuckBoot---\r\n");
                 Print(L"   Arrow keys/WASD to move, Enter to select\r\n   Esc to clear screen, F12 to reset bootloader\r\n\n");
                 //save current cursor position because it's where the boot menu text starts
                 start_column = ST->ConOut->Mode->CursorColumn;
                 start_row = ST->ConOut->Mode->CursorRow;
-                display_refresh_entries(ST, menu_entries, menu_number_of_entries, selected_menu_entry_index, start_column, start_row);
+                display_refresh_entries(menu_entries, menu_number_of_entries, selected_menu_entry_index, start_column, start_row);
             }
 
             //Check if it's arrow keys
@@ -135,7 +146,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     if(selected_menu_entry_index < menu_number_of_entries-1)selected_menu_entry_index++;
                 }
                 //refresh entries display
-                display_refresh_entries(ST, menu_entries, menu_number_of_entries, selected_menu_entry_index, start_column, start_row);
+                display_refresh_entries(menu_entries, menu_number_of_entries, selected_menu_entry_index, start_column, start_row);
             }
 
             //Check if it's Enter
@@ -143,12 +154,12 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                 switch(selected_menu_entry_index){
                     case 0: {
                         //Auto boot
-                        load_kernel_resources(ST, ImageHandle, &root, loaded_addrs, kernel_stack_size, &kernel_stack, &kernel_image_size_pages);
-                        GOP_auto_select_native(ST, &GOP, &GOP_info, &GOP_info_size, &GOP_selected_mode);
+                        load_kernel_resources(&root, loaded_addrs, kernel_stack_size, &kernel_stack);
+                        GOP_auto_select_native(&GOP, &GOP_info, &GOP_info_size, &GOP_selected_mode);
 
                         //Boot Nuck OS
                         //kernel PMM stuff
-                        get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
+                        get_memory_map(&memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
                         get_memory_map_highest_address(memory_map_size, memory_map, memory_map_descriptor_size, &highest_usable_range_addr);
 
                         //allocate memory for kernel PMM range
@@ -164,8 +175,20 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                         }
                         Print(L"pmm bitmap allocated at address %lx!\r\nheap size: %d, heap bitmap size: %d bytes %d pages\r\n", kernel_pmm_bitmap_addr, heap_size_pages, heap_bitmap_size_bytes, heap_bitmap_size_pages);
 
-                        get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
+                        get_memory_map(&memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
+
+                        Print(L"Press any key to continue...\r\n");
+                        while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
+
+                        //GOP info
+                        uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP_selected_mode, &GOP_info_size, &GOP_info);
+                        if(EFI_ERROR(status)) crashout(L"Can't query GOP mode in QueryMode", status);
                         
+                        //Set new GOP mode
+                        status = uefi_call_wrapper(GOP->SetMode, 2, GOP, GOP_selected_mode);
+                        if(EFI_ERROR(status)) crashout(L"Unable to get GOP mode in SetMode", status);
+                        Print(L"New resolution: %dx%d!\r\n", GOP->Mode->Info->HorizontalResolution, GOP->Mode->Info->VerticalResolution);
+
                         //allocate memory for backbuffer
                         status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderData, GOP->Mode->FrameBufferSize, &backbuffer);
                         if(EFI_ERROR(status)){
@@ -174,36 +197,52 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                         }
                         Print(L"Backbuffer: %ld bytes at %lx\r\n", GOP->Mode->FrameBufferSize, backbuffer);
 
-                        Print(L"Say goodbye to UEFI-land!\r\nPress any key to continue...\r\n");
-                        while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
-
-                        //GOP info
-                        uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP_selected_mode, &GOP_info_size, &GOP_info);
-                        if(EFI_ERROR(status)) crashout(ST, L"Can't query GOP mode in QueryMode", status);
                         
-                        //Set new GOP mode
-                        status = uefi_call_wrapper(GOP->SetMode, 2, GOP, GOP_selected_mode);
-                        if(EFI_ERROR(status)) crashout(ST, L"Unable to get GOP mode in SetMode", status);
+                        dirty_tiles_size(GOP->Mode->Info->HorizontalResolution, GOP->Mode->Info->VerticalResolution, &tile_size);
+                        
+                        tiles_x = (GOP->Mode->Info->HorizontalResolution+tile_size-1)/tile_size;
+                        tiles_y = (GOP->Mode->Info->VerticalResolution+tile_size-1)/tile_size;
+
+                        uint64_t total_tiles = tiles_x * tiles_y;
+                        //allocate dirty tiles map
+                        uint64_t tilemap_size_pages = (total_tiles+0xFFF) / 0x1000;
+                        status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, tilemap_size_pages, &tilemap_addr); //allocate pages for pmm bitmap
+                        if(EFI_ERROR(status)){
+                            Print(L"Can't allocate %d pages for dirty tiles map\r\n", tilemap_size_pages);
+                            while(1);
+                        }
+                        Print(L"dirty tiles map allocated at address %lx!\r\n[%dx%d] tiles with tile size %dx%d(%d bytes %d pages)\r\n", tilemap_addr, tiles_x, tiles_y, tile_size, tile_size, total_tiles, tilemap_size_pages);
+
+                        Print(L"Press any key to continue...\r\n");
+                        while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
 
                         goto exit_boot_services;
                         break;
                     }
                     case 1: {
-                        load_kernel_resources(ST, ImageHandle, &root, loaded_addrs, kernel_stack_size, &kernel_stack, &kernel_image_size_pages);
+                        load_kernel_resources(&root, loaded_addrs, kernel_stack_size, &kernel_stack);
                         break;
                     }
                     case 2: {
-                        GOP_auto_select(ST, &GOP, &GOP_info, &GOP_info_size, &GOP_selected_mode);
+                        GOP_auto_select(&GOP, &GOP_info, &GOP_info_size, &GOP_selected_mode);
                         break;
                     }
                     case 3: {
-                        GOP_manual_select(ST, &GOP, &GOP_info, &GOP_info_size, &GOP_selected_mode);
+                        GOP_manual_select(&GOP, &GOP_info, &GOP_info_size, &GOP_selected_mode);   
                         break;
                     }
                     case 4: {
+                        //Set new GOP mode
+                        status = uefi_call_wrapper(GOP->SetMode, 2, GOP, GOP_selected_mode);
+                        if(EFI_ERROR(status)) crashout(L"Unable to get GOP mode when setting new GOP mode", status);
+                        
+                        Print(L"New mode set: %dx%d!\r\n", GOP->Mode->Info->HorizontalResolution, GOP->Mode->Info->VerticalResolution);
+                        break;
+                    }
+                    case 5: {
                         //Boot Nuck OS
                         //kernel PMM stuff
-                        get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
+                        get_memory_map(&memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
                         get_memory_map_highest_address(memory_map_size, memory_map, memory_map_descriptor_size, &highest_usable_range_addr);
 
                         //allocate memory for kernel PMM range
@@ -219,58 +258,78 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                         }
                         Print(L"pmm bitmap allocated at address %lx!\r\nheap size: %d, heap bitmap size: %d bytes %d pages\r\n", kernel_pmm_bitmap_addr, heap_size_pages, heap_bitmap_size_bytes, heap_bitmap_size_pages);
 
-                        get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
-                        
-                        //allocate memory for backbuffer
-                        status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderData, GOP->Mode->FrameBufferSize, &backbuffer);
-                        if(EFI_ERROR(status)){
-                            Print(L"Can't allocate %ld bytes for video backbuffer\r\n", GOP->Mode->FrameBufferSize);
-                            while(1);
-                        }
-                        Print(L"Backbuffer: %ld bytes at %lx\r\n", GOP->Mode->FrameBufferSize, backbuffer);
-                        
-                        Print(L"Say goodbye to UEFI-land!\r\nPress any key to continue...\r\n");
+                        get_memory_map(&memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
+
+                        Print(L"Press any key to continue...\r\n");
                         while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
 
                         //GOP info
                         uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP_selected_mode, &GOP_info_size, &GOP_info);
-                        if(EFI_ERROR(status)) crashout(ST, L"Can't query GOP mode in QueryMode", status);
+                        if(EFI_ERROR(status)) crashout(L"Can't query GOP mode in QueryMode", status);
                         
                         //Set new GOP mode
                         status = uefi_call_wrapper(GOP->SetMode, 2, GOP, GOP_selected_mode);
-                        if(EFI_ERROR(status)) crashout(ST, L"Unable to get GOP mode in SetMode", status);
+                        if(EFI_ERROR(status)) crashout(L"Unable to get GOP mode in SetMode", status);
+                        Print(L"New resolution: %dx%d!\r\n", GOP->Mode->Info->HorizontalResolution, GOP->Mode->Info->VerticalResolution);
+
+                        //allocate memory for backbuffer
+                        uint64_t framebuffer_size_pages = (GOP->Mode->FrameBufferSize+0xFFF)/0x1000;
+                        status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, framebuffer_size_pages, &backbuffer);
+                        if(EFI_ERROR(status)){
+                            Print(L"Can't allocate %ld bytes for video backbuffer\r\n", framebuffer_size_pages);
+                            while(1);
+                        }
+                        Print(L"Backbuffer: %d bytes/%d pages at %lx\r\n", GOP->Mode->FrameBufferSize, framebuffer_size_pages, backbuffer);
+                        
+                        dirty_tiles_size(GOP->Mode->Info->HorizontalResolution, GOP->Mode->Info->VerticalResolution, &tile_size);
+                        
+                        tiles_x = (GOP->Mode->Info->HorizontalResolution+tile_size-1)/tile_size;
+                        tiles_y = (GOP->Mode->Info->VerticalResolution+tile_size-1)/tile_size;
+
+                        uint64_t total_tiles = tiles_x * tiles_y;
+                        //allocate dirty tiles map
+                        uint64_t tilemap_size_pages = (total_tiles+0xFFF) / 0x1000;
+                        status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, tilemap_size_pages, &tilemap_addr); //allocate pages for pmm bitmap
+                        if(EFI_ERROR(status)){
+                            Print(L"Can't allocate %d pages for dirty tiles map\r\n", tilemap_size_pages);
+                            while(1);
+                        }
+                        Print(L"dirty tiles map allocated at address %lx!\r\n[%dx%d] tiles with tile size %dx%d(%d bytes %d pages)\r\n", tilemap_addr, tiles_x, tiles_y, tile_size, tile_size, total_tiles, tilemap_size_pages);
+
+                        Print(L"Press any key to continue...\r\n");
+                        while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
 
                         goto exit_boot_services;
                         break;
                     }
-                    case 5: {
+                    case 6: {
                         //configure kernel params
 
                         break;
                     }
-                    case 6: {
-                        //view mem map
-                        get_memory_map(ST, &memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
-                        print_memory_map(ST, memory_map_size, memory_map, memory_map_key, memory_map_descriptor_size, memory_map_descriptor_version);
-                        break;
-                    }
                     case 7: {
-                        //view config tables
-                        print_config_tables(ST);
+                        //view mem map
+                        get_memory_map(&memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
+                        print_memory_map(memory_map_size, memory_map, memory_map_key, memory_map_descriptor_size, memory_map_descriptor_version);
                         break;
                     }
                     case 8: {
+                        //view config tables
+                        print_config_tables();
+                        break;
+                    }
+                    case 9: {
                         //EFI shell
                         Print(L"LOADING EFI SHELL\r\n");
-                        root = open_volume(ST, ImageHandle); //opens root of filesystem of boot device
+                        root = open_volume(); //opens root of filesystem of boot device
 
                         wchar_t* filename = L"EFI\\BOOT\\SHELLX64.EFI";
-                        EFI_PHYSICAL_ADDRESS shell_addr = load_file(ST, root, filename);
+                        EFI_PHYSICAL_ADDRESS shell_addr = load_file(root, filename);
                         UINT64 size;
                         {
                             EFI_FILE_PROTOCOL* file;
                             file = open_file(root, filename);
-                            size = get_file_size(ST, file, filename);
+                            size = get_file_size(file, filename);
                         }
 
                         EFI_HANDLE shell_image = NULL;
@@ -286,12 +345,12 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                         }
                         break;
                     }
-                    case 9: {
+                    case 10: {
                         //shutdown
                         uefi_call_wrapper(ST->RuntimeServices->ResetSystem, 4, EfiResetShutdown, EFI_SUCCESS, 0, NULL);
                         break;
                     }
-                    case 10: {
+                    case 11: {
                         //Hard reset
                         triple_fault();
                         break;
@@ -331,13 +390,16 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     ctx->ConfigTableEntriesCount = ST->NumberOfTableEntries;
 
     ctx->GOP = GOP->Mode;
-    ctx->fb = backbuffer;
+    ctx->fb = (uint32_t*)backbuffer;
+
+    ctx->dirty_tilemap_addr = tilemap_addr;
+    ctx->dirty_tiles_x = tiles_x;
+    ctx->dirty_tiles_y = tiles_y;
+    ctx->dirty_tile_size = tile_size;
 
     ctx->kernelStack = kernel_stack;
-    ctx->kernelStackSizePages = kernel_stack_size;
 
     ctx->kernelImageStart = loaded_addrs[0];
-    ctx->kernelImageSizePages = kernel_image_size_pages;
 
     ctx->kernelPMMRange.bitmap = (uint8_t*)kernel_pmm_bitmap_addr;
     ctx->kernelPMMRange.bitmap_size_pages = kernel_pmm_bitmap_size;
@@ -367,7 +429,21 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     return EFI_SUCCESS;
 }
 
-void crashout(EFI_SYSTEM_TABLE* ST, wchar_t* error, EFI_STATUS code){
+//returns width and height of a dirty tile for given resolution
+void dirty_tiles_size(uint64_t width, uint64_t height, uint64_t* tile_size){
+    uint64_t max_reso = (width>height) ? width : height;
+    if(max_reso <= 1024){
+        *tile_size = 16;
+    }
+    else if(max_reso <= 2560){
+        *tile_size = 32;
+    }
+    else{
+        *tile_size = 64;
+    }
+}
+
+void crashout(wchar_t* error, EFI_STATUS code){
     EFI_INPUT_KEY key;
     uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
     Print(L"Error: %s\r\nReason: %r\r\n", error, code);
@@ -383,7 +459,7 @@ void early_display_setting(){
         if(uefi_call_wrapper(ST->ConIn->ReadKeyStroke, 2, ST->ConIn, &key) == EFI_SUCCESS){
             if(key.UnicodeChar == L'y'){
                 status = uefi_call_wrapper(ST->ConOut->SetMode, 2, ST->ConOut, 0);
-                if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut mode in func early_display_setting, SetMode", status);
+                if(EFI_ERROR(status)) crashout(L"Failed to set ConOut mode in func early_display_setting, SetMode", status);
                 break;
             }
             else if(key.UnicodeChar == L'n'){
@@ -391,36 +467,32 @@ void early_display_setting(){
             }
             else if(key.UnicodeChar == L'r'){
                 status = uefi_call_wrapper(ST->ConOut->Reset, 2, ST->ConOut, false);
-                if(EFI_ERROR(status)) crashout(ST, L"Failed to reset ConOut in func early_display_setting, Reset", status);
+                if(EFI_ERROR(status)) crashout(L"Failed to reset ConOut in func early_display_setting, Reset", status);
                 break;
             }
         }
     }
 }
 
-void load_kernel_resources(EFI_SYSTEM_TABLE* ST, EFI_HANDLE IH, EFI_FILE_PROTOCOL** root, EFI_PHYSICAL_ADDRESS loaded_addrs[], uint64_t kernel_stack_size, EFI_PHYSICAL_ADDRESS* kernel_stack, uint32_t* kernel_size){
+void load_kernel_resources(EFI_FILE_PROTOCOL** root, EFI_PHYSICAL_ADDRESS loaded_addrs[], uint64_t kernel_stack_size, EFI_PHYSICAL_ADDRESS* kernel_stack){
     //Load kernel and data
     Print(L"loading kernel and data\r\n");
     
-    uint32_t kernel_stack_size_tmp = kernel_stack_size;
-    *root = open_volume(ST, IH);
+    *root = open_volume();
     
-    //kernel stack size tmp becomes size of mem range file occupies
-    loaded_addrs[0] = load_kernel_with_stack(ST, *root, L"kernel.bin", &kernel_stack_size_tmp);
-    *kernel_size = kernel_stack_size_tmp;
-    //calculate kernel stack top addr from this info
-    *kernel_stack = loaded_addrs[0] + kernel_stack_size_tmp * 0x1000;
+    uint64_t temp = kernel_stack_size;
+    //kernel stack size becomes top of kernel stack
+    loaded_addrs[0] = load_kernel_elf(*root, L"kernel.elf", &temp);
+    *kernel_stack = temp;
 
-    loaded_addrs[1] = load_file(ST, *root, L"badapple.nvideo");
-    loaded_addrs[2] = load_file(ST, *root, L"nuckos_logo.nvideo");
-    loaded_addrs[3] = load_file(ST, *root, L"pointer.nvideo");
+    loaded_addrs[1] = load_file(*root, L"badapple.nvideo");
+    loaded_addrs[2] = load_file(*root, L"nuckos_logo.nvideo");
+    loaded_addrs[3] = load_file(*root, L"pointer.nvideo");
 
     Print(L"files loaded successfully\r\n");
 }
 
-void GOP_auto_select(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP, EFI_GRAPHICS_OUTPUT_MODE_INFORMATION** GOP_info, UINTN* GOP_info_size, UINTN* selected_mode_num){
-    EFI_STATUS status;
-    EFI_BOOT_SERVICES* BS = ST->BootServices;
+void GOP_auto_select(EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP, EFI_GRAPHICS_OUTPUT_MODE_INFORMATION** GOP_info, UINTN* GOP_info_size, UINTN* selected_mode_num){
     EFI_GUID GOP_GUID = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
     UINTN GOP_mode_count;
     UINTN GOP_native_mode_num;
@@ -432,14 +504,14 @@ void GOP_auto_select(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP, E
 
     //auto select GOP
     status = uefi_call_wrapper(BS->LocateProtocol, 3, &GOP_GUID, NULL, (void**) GOP);
-    if(EFI_ERROR(status)) crashout(ST, L"Couldn't locate protocol GOP in LocateProtocol", status);
+    if(EFI_ERROR(status)) crashout(L"Couldn't locate protocol GOP in LocateProtocol", status);
     status = uefi_call_wrapper((*GOP)->QueryMode, 4, *GOP, (*GOP)->Mode==NULL?0:(*GOP)->Mode->Mode, GOP_info_size, GOP_info);
     //get the current video mode
     if(status == EFI_NOT_STARTED){
         status = uefi_call_wrapper((*GOP)->SetMode, 2, *GOP, 0);
-        if(EFI_ERROR(status)) crashout(ST, L"Cannot set GOP mode in SetMode", status);
+        if(EFI_ERROR(status)) crashout(L"Cannot set GOP mode in SetMode", status);
     }
-    if(EFI_ERROR(status)) crashout(ST, L"Unable to get GOP native mode in QueryMode", status);
+    if(EFI_ERROR(status)) crashout(L"Unable to get GOP native mode in QueryMode", status);
     else{
         GOP_native_mode_num = (*GOP)->Mode->Mode;
         GOP_mode_count = (*GOP)->Mode->MaxMode;
@@ -448,7 +520,7 @@ void GOP_auto_select(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP, E
     //query GOP modes
     for(UINTN i = 0;i<GOP_mode_count;i++){
         status = uefi_call_wrapper((*GOP)->QueryMode, 4, *GOP, i, GOP_info_size, GOP_info);
-        if(EFI_ERROR(status)) crashout(ST, L"Could not query GOP mode in QueryMode", status);
+        if(EFI_ERROR(status)) crashout(L"Could not query GOP mode in QueryMode", status);
         else{
             Print(L"mode %d: %dx%d format %x%s\r\n", i, (*GOP_info)->HorizontalResolution, (*GOP_info)->VerticalResolution, (*GOP_info)->PixelFormat, i == GOP_native_mode_num ? L"(current)" : L"");                  
         }
@@ -461,7 +533,7 @@ void GOP_auto_select(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP, E
 
     for(UINTN i = 0;i<GOP_mode_count;i++){
         status = uefi_call_wrapper((*GOP)->QueryMode, 4, *GOP, i, GOP_info_size, GOP_info);
-        if(EFI_ERROR(status)) crashout(ST, L"Cannot query GOP mode in QueryMode", status);
+        if(EFI_ERROR(status)) crashout(L"Cannot query GOP mode in QueryMode", status);
         if((*GOP_info)->PixelFormat != 1){
             continue;
         }
@@ -479,33 +551,26 @@ void GOP_auto_select(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP, E
         }
     }
     status = uefi_call_wrapper((*GOP)->QueryMode, 4, *GOP, best_mode_num, GOP_info_size, GOP_info);
-    if(EFI_ERROR(status)) crashout(ST, L"Can't query GOP mode in QueryMode", status);
+    if(EFI_ERROR(status)) crashout(L"Can't query GOP mode in QueryMode", status);
     Print(L"Selected:\r\nmode %d: %dx%d format %x%s\r\n", best_mode_num, (*GOP_info)->HorizontalResolution, (*GOP_info)->VerticalResolution, (*GOP_info)->PixelFormat, best_mode_num == GOP_native_mode_num ? L"(current)" : L"");
     *selected_mode_num = best_mode_num;
 }
 
-void GOP_auto_select_native(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP, EFI_GRAPHICS_OUTPUT_MODE_INFORMATION** GOP_info, UINTN* GOP_info_size, UINTN* selected_mode_num){
-    EFI_STATUS status;
-    EFI_BOOT_SERVICES* BS = ST->BootServices;
+void GOP_auto_select_native(EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP, EFI_GRAPHICS_OUTPUT_MODE_INFORMATION** GOP_info, UINTN* GOP_info_size, UINTN* selected_mode_num){
     EFI_GUID GOP_GUID = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
     UINTN GOP_mode_count;
     UINTN GOP_native_mode_num;
 
-    UINTN best_mode_num = 0;
-    UINTN best_mode_pixel_count = 0;
-    UINTN best_mode_width = 0;
-
-
     //auto select GOP
     status = uefi_call_wrapper(BS->LocateProtocol, 3, &GOP_GUID, NULL, (void**) GOP);
-    if(EFI_ERROR(status)) crashout(ST, L"Couldn't locate protocol GOP in LocateProtocol", status);
+    if(EFI_ERROR(status)) crashout(L"Couldn't locate protocol GOP in LocateProtocol", status);
     status = uefi_call_wrapper((*GOP)->QueryMode, 4, *GOP, (*GOP)->Mode==NULL?0:(*GOP)->Mode->Mode, GOP_info_size, GOP_info);
     //get the current video mode
     if(status == EFI_NOT_STARTED){
         status = uefi_call_wrapper((*GOP)->SetMode, 2, *GOP, 0);
-        if(EFI_ERROR(status)) crashout(ST, L"Cannot set GOP mode in SetMode", status);
+        if(EFI_ERROR(status)) crashout(L"Cannot set GOP mode in SetMode", status);
     }
-    if(EFI_ERROR(status)) crashout(ST, L"Unable to get GOP native mode in QueryMode", status);
+    if(EFI_ERROR(status)) crashout(L"Unable to get GOP native mode in QueryMode", status);
     else{
         GOP_native_mode_num = (*GOP)->Mode->Mode;
         GOP_mode_count = (*GOP)->Mode->MaxMode;
@@ -513,33 +578,29 @@ void GOP_auto_select_native(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL**
     Print(L"GOP native mode: %d\r\nGOP number of modes: %d\r\n", GOP_native_mode_num, GOP_mode_count);
     //query GOP mode
     status = uefi_call_wrapper((*GOP)->QueryMode, 4, *GOP, GOP_native_mode_num, GOP_info_size, GOP_info);
-    if(EFI_ERROR(status)) crashout(ST, L"Can't query GOP mode in QueryMode", status);
+    if(EFI_ERROR(status)) crashout(L"Can't query GOP mode in QueryMode", status);
     Print(L"Selected native:\r\nmode %d: %dx%d format %x%s\r\n", GOP_native_mode_num, (*GOP_info)->HorizontalResolution, (*GOP_info)->VerticalResolution, (*GOP_info)->PixelFormat, L"(current)");
-    *selected_mode_num = best_mode_num;
+    *selected_mode_num = GOP_native_mode_num;
 }
 
-void GOP_manual_select(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP, EFI_GRAPHICS_OUTPUT_MODE_INFORMATION** GOP_info, UINTN* GOP_info_size, UINTN* selected_mode_num){
-    EFI_STATUS status;
-    EFI_INPUT_KEY key;
-    EFI_BOOT_SERVICES* BS = ST->BootServices;
+void GOP_manual_select(EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP, EFI_GRAPHICS_OUTPUT_MODE_INFORMATION** GOP_info, UINTN* GOP_info_size, UINTN* selected_mode_num){
     EFI_GUID GOP_GUID = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
     UINTN GOP_mode_count;
     UINTN GOP_native_mode_num;
 
     UINTN best_mode_num = 0;
 
-
     //manual select GOP
     //set GOP
     status = uefi_call_wrapper(BS->LocateProtocol, 3, &GOP_GUID, NULL, (void**) GOP);
-    if(EFI_ERROR(status)) crashout(ST, L"Couldn't locate protocol GOP in LocateProtocol", status);
+    if(EFI_ERROR(status)) crashout(L"Couldn't locate protocol GOP in LocateProtocol", status);
     status = uefi_call_wrapper((*GOP)->QueryMode, 4, *GOP, (*GOP)->Mode==NULL?0:(*GOP)->Mode->Mode, GOP_info_size, GOP_info);
     //get the current video mode
     if(status == EFI_NOT_STARTED){
         status = uefi_call_wrapper((*GOP)->SetMode, 2, *GOP, 0);
-        if(EFI_ERROR(status)) crashout(ST, L"Cannot set GOP mode in SetMode", status);
+        if(EFI_ERROR(status)) crashout(L"Cannot set GOP mode in SetMode", status);
     }
-    if(EFI_ERROR(status)) crashout(ST, L"Unable to get GOP Native Mode in QueryMode", status);
+    if(EFI_ERROR(status)) crashout(L"Unable to get GOP Native Mode in QueryMode", status);
     else{
         GOP_native_mode_num = (*GOP)->Mode->Mode;
         GOP_mode_count = (*GOP)->Mode->MaxMode;
@@ -548,7 +609,7 @@ void GOP_manual_select(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP,
     //query GOP modes
     for(UINTN i = 0;i<GOP_mode_count;i++){
         status = uefi_call_wrapper((*GOP)->QueryMode, 4, *GOP, i, GOP_info_size, GOP_info);
-        if(EFI_ERROR(status)) crashout(ST, L"Could not query GOP mode in QueryMode", status);
+        if(EFI_ERROR(status)) crashout(L"Could not query GOP mode in QueryMode", status);
         
         else{
             Print(L"mode %d: %dx%d format %x%s  ", i, (*GOP_info)->HorizontalResolution, (*GOP_info)->VerticalResolution, (*GOP_info)->PixelFormat, i == GOP_native_mode_num ? L"(current)" : L"");                  
@@ -565,7 +626,7 @@ void GOP_manual_select(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP,
         if(key.UnicodeChar == L'y'){
             best_mode_num = i;
             status = uefi_call_wrapper((*GOP)->QueryMode, 4, *GOP, best_mode_num, GOP_info_size, GOP_info);
-            if(EFI_ERROR(status)) crashout(ST, L"Could not query GOP mode in QueryMode", status);
+            if(EFI_ERROR(status)) crashout(L"Could not query GOP mode in QueryMode", status);
         
             Print(L"\r\nSelected:\r\nmode %d: %dx%d format %x%s\r\n", best_mode_num, (*GOP_info)->HorizontalResolution, (*GOP_info)->VerticalResolution, (*GOP_info)->PixelFormat, best_mode_num == GOP_native_mode_num ? L"(current)" : L"");
             break;
@@ -577,28 +638,27 @@ void GOP_manual_select(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL** GOP,
     *selected_mode_num = best_mode_num;
 }
 
-void display_refresh_entries(EFI_SYSTEM_TABLE* ST, wchar_t* menu_entries[], UINTN menu_number_of_entries, UINTN selected_menu_entry_index, UINTN start_column, UINTN start_row){
-    EFI_STATUS status;
+void display_refresh_entries(wchar_t* menu_entries[], UINTN menu_number_of_entries, UINTN selected_menu_entry_index, UINTN start_column, UINTN start_row){
     //sets cursor position
     status = uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, start_column, start_row);
-    if(EFI_ERROR(status)) crashout(ST, L"Can't set cursor position in func display_refresh_entries, SetCursorPosition", status);
+    if(EFI_ERROR(status)) crashout(L"Can't set cursor position in func display_refresh_entries, SetCursorPosition", status);
     //sets font color
     status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to set font color in func display_refresh_entries, SetAttribute", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to set font color in func display_refresh_entries, SetAttribute", status);
     
     for(UINTN entryIndex = 0;entryIndex < menu_number_of_entries;entryIndex++){ //print all menu entries
         if(entryIndex == selected_menu_entry_index){
             status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR_SELECTED);
-            if(EFI_ERROR(status)) crashout(ST, L"Failed to set selected font color in func display_refresh_entries, SetAttribute", status);
+            if(EFI_ERROR(status)) crashout(L"Failed to set selected font color in func display_refresh_entries, SetAttribute", status);
         }
         Print(menu_entries[entryIndex]);
         status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
-        if(EFI_ERROR(status)) crashout(ST, L"Failed to reset font color in func display_refresh_entries, SetAttribute", status);
+        if(EFI_ERROR(status)) crashout(L"Failed to reset font color in func display_refresh_entries, SetAttribute", status);
         Print(L"\r\n");
     }
 }
 
-EFI_PHYSICAL_ADDRESS load_file(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename){
+EFI_PHYSICAL_ADDRESS load_file(EFI_FILE_PROTOCOL* root, wchar_t* filename){
     EFI_BOOT_SERVICES* BS = ST->BootServices;
     EFI_STATUS status;
     EFI_FILE_PROTOCOL* file;
@@ -607,18 +667,18 @@ EFI_PHYSICAL_ADDRESS load_file(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wc
     EFI_PHYSICAL_ADDRESS addr;
 
     file = open_file(root, filename);
-    size = get_file_size(ST, file, filename);
+    size = get_file_size(file, filename);
 
     // Round size up to nearest page
     pages = (size + 0xFFF) / 0x1000;
 
     // Allocate pages at address
     status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, pages, &addr);
-    if(EFI_ERROR(status)) crashout(ST, L"Cannot allocate pages in func load_file, AllocatePages", status);
+    if(EFI_ERROR(status)) crashout(L"Cannot allocate pages in func load_file, AllocatePages", status);
 
     // Read kernel binary into memory
     status = uefi_call_wrapper(file->Read, 3, file, &size, (void*)addr);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to read file in func load_file, Read", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to read file in func load_file, Read", status);
 
     close_file(file);
 
@@ -626,56 +686,189 @@ EFI_PHYSICAL_ADDRESS load_file(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wc
     return addr;
 }
 
-//takes in stack size, returns (total size of the file + stack) in pages
-EFI_PHYSICAL_ADDRESS load_kernel_with_stack(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* root, wchar_t* filename, uint32_t* stack_size){
-    EFI_BOOT_SERVICES* BS = ST->BootServices;
-    EFI_STATUS status;
-    EFI_FILE_PROTOCOL* file;
-    UINTN size;
-    UINTN pages;
-    EFI_PHYSICAL_ADDRESS addr = 0x100000;
+//takes in stack size, returns stack top addr through *stack_size, returns kernel entry point address
+EFI_PHYSICAL_ADDRESS load_kernel_elf(EFI_FILE_PROTOCOL* root, wchar_t* filename, uint64_t* stack_size){
+    EFI_FILE_PROTOCOL* file = open_file(root, filename);
+    UINTN filesize = get_file_size(file, filename);
 
-    file = open_file(root, filename);
-    size = get_file_size(ST, file, filename);
-
-    //Round size up to nearest page
-    pages = (size + 0xFFF) / 0x1000;
-    //Add stack size
-    pages += *stack_size;
-
-    *stack_size = pages;
-    // Allocate pages at address
-    status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAddress, EfiLoaderData, pages, &addr);
-    if(EFI_ERROR(status)){
-        crashout(ST, L"Cannot allocate pages at 0x100000 in func load_kernel_with_stack, AllocatePages", status);
-    }
+    //load kernel temporarily to pool
+    void* elf_buffer;
+    status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderCode, filesize, &elf_buffer);
+    if(EFI_ERROR(status)) crashout(L"Cannot allocate pool in func load_kernel_elf, AllocatePool", status);
+    
 
     // Read kernel binary into memory
-    status = uefi_call_wrapper(file->Read, 3, file, &size, (void*)addr);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to read file in func load_file, Read", status);
+    status = uefi_call_wrapper(file->Read, 3, file, &filesize, (void*)elf_buffer);
+    if(EFI_ERROR(status)) crashout(L"Failed to read file in func load_file, Read", status);
 
     close_file(file);
+    
+    Elf64_Ehdr* EHDR = (Elf64_Ehdr*)elf_buffer;
 
-    Print(L"%s loaded with stack at address: 0x%lx\r\n", filename, addr);
-    return addr;
+    Print(L"ELF buffer addr: %lx\n", elf_buffer);
+    //validate Ehdr
+    if(kmemcmp(EHDR->e_ident, "\x7f""ELF", 4) != 0){
+        Print(L"Invalid kernel EHDR, cannot proceed\r\n");
+        while(1);
+    }
+
+    Print(L"Valid kernel EHDR\r\n");
+
+    //locate PHDRs and dynamic section
+    Elf64_Phdr* PHDR = (Elf64_Phdr*)((uint8_t*)elf_buffer + EHDR->e_phoff);
+
+    Elf64_Dyn* dyn = NULL;
+    size_t dyn_count = 0;
+
+    //determine total memory size needed
+    uint64_t min_vaddr = UINT64_MAX;
+    uint64_t max_vaddr = 0;
+
+    for(int i=0;i<EHDR->e_phnum;i++){
+        if(PHDR[i].p_type == PT_LOAD){
+
+            if(PHDR[i].p_vaddr < min_vaddr){
+                min_vaddr = PHDR[i].p_vaddr;
+            }
+
+            uint64_t end = PHDR[i].p_vaddr + PHDR[i].p_memsz;
+            if(end > max_vaddr){
+                max_vaddr = end;
+            }
+        }
+        else if(PHDR[i].p_type == PT_DYNAMIC) {
+            dyn = (Elf64_Dyn*)((uint8_t*)elf_buffer + PHDR[i].p_offset);
+            dyn_count = PHDR[i].p_filesz / sizeof(Elf64_Dyn);
+            if (PHDR[i].p_filesz % sizeof(Elf64_Dyn) != 0){
+                Print(L"Incorrect size for dyn!\r\n");
+                while(1);
+            }
+            Print(L"%d relocation headers\r\n", dyn_count);
+        }
+    }
+
+    if (min_vaddr == UINT64_MAX) {
+        Print(L"No loadable segments!\r\n");
+        while(1);
+    }
+
+    Print(L"min: %lx max: %lx\r\n", min_vaddr, max_vaddr);
+
+    uint64_t total_size = max_vaddr - min_vaddr;
+    uint64_t kernel_pages = (total_size + 0xFFF) / 0x1000;
+
+    //allocate memory for kernel
+    EFI_PHYSICAL_ADDRESS kernel_base;
+    //Allocate pages for kernel
+    status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, kernel_pages, &kernel_base);
+    if(EFI_ERROR(status)){
+        crashout(L"Cannot allocate pages in func load_kernel_elf, AllocatePages", status);
+    }
+    Print(L"Kernel base: %lx(%u pages)\r\n", kernel_base, kernel_pages);
+
+    //Load segments
+    for(int i=0; i<EHDR->e_phnum; i++) {
+        if(PHDR[i].p_type != PT_LOAD){ //only filter out PT_LOAD
+            continue;
+        }
+        
+        void* dest = (void*)(
+            kernel_base + (PHDR[i].p_vaddr - min_vaddr)
+        );
+
+        kmemcpy(dest,
+               (uint8_t*)elf_buffer + PHDR[i].p_offset,
+               PHDR[i].p_filesz);
+
+        //Zero BSS
+        if(PHDR[i].p_memsz > PHDR[i].p_filesz){
+            kmemset((uint8_t*)dest + PHDR[i].p_filesz,
+                   0,
+                   PHDR[i].p_memsz - PHDR[i].p_filesz);
+        }
+
+    }
+
+    //Apply relocations
+    if(dyn){
+        Elf64_Rela* rela = NULL;
+        size_t rela_size = 0;
+        for (size_t i=0;i<dyn_count;i++) {
+            switch(dyn[i].d_tag){
+                case DT_RELA:
+                    rela = (Elf64_Rela*)((uint8_t*)elf_buffer + dyn[i].d_un.d_ptr);
+                    break;
+                case DT_RELASZ:
+                    rela_size = dyn[i].d_un.d_val;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if(rela && rela_size){
+            size_t count = rela_size / sizeof(Elf64_Rela);
+            Print(L"Total: %d relocations\r\n", count);
+
+            uint64_t dynamic_relocations_count = 0;
+            uint64_t static_relocations_count = 0;
+
+            for(size_t i=0;i<count;i++){
+                uint64_t* where = (void*)(kernel_base + (rela[i].r_offset - min_vaddr));
+                uint32_t type = ELF64_R_TYPE(rela[i].r_info);
+                switch(type){
+                    case R_X86_64_RELATIVE:
+                        dynamic_relocations_count++;
+                        *where = kernel_base + rela[i].r_addend;
+                        break;
+                    case R_X86_64_64:
+                        static_relocations_count++;
+                        *where = kernel_base + rela[i].r_addend;
+                        break;
+                    default:
+                        // ignore unsupported relocations
+                        Print(L"Unsupported relocation!\r\n");
+                        break;
+                }
+            }
+
+            Print(L"%d dynamic, %d static\r\n", dynamic_relocations_count, static_relocations_count);
+        }
+    }
+
+    //calculate kernel entry
+    EFI_PHYSICAL_ADDRESS kernel_entry = kernel_base + (EHDR->e_entry - min_vaddr);
+    
+    Print(L"kernel entry: %lx\r\n", kernel_entry);
+    
+    EFI_PHYSICAL_ADDRESS stack_addr;
+    //Allocate pages for stack
+    status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, *stack_size, &stack_addr);
+    if(EFI_ERROR(status)){
+        crashout(L"Cannot allocate pages in func load_kernel_elf, AllocatePages", status);
+    }
+    Print(L"%s loaded, stack at address: 0x%lx\r\n", filename, stack_addr);
+
+    *stack_size = (uint64_t)stack_addr + (*stack_size * 0x1000); //return through recycled pointer
+
+    Print(L"Kernel stack top: %lx\n", *stack_size);
+
+    return kernel_entry;
 }
 
 void close_file(EFI_FILE_PROTOCOL* file){
-    EFI_STATUS status;
     status = uefi_call_wrapper(file->Close, 1, file);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to close file in func close_file, Close", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to close file in func close_file, Close", status);
 }
 
-UINT64 get_file_size(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* file, wchar_t* filename){    
-    EFI_STATUS status;
-    EFI_BOOT_SERVICES* BS = ST->BootServices;
+UINT64 get_file_size(EFI_FILE_PROTOCOL* file, wchar_t* filename){    
     EFI_FILE_INFO* info;
     UINT64 ret;
 
     info = LibFileInfo(file);
     ret = info->FileSize;
     status = uefi_call_wrapper(BS->FreePool, 1, info);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to free FileInfo pool in func get_file_size, FreePool", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to free FileInfo pool in func get_file_size, FreePool", status);
 
     Print(filename);
     Print(L" file size: ");
@@ -690,18 +883,15 @@ UINT64 get_file_size(EFI_SYSTEM_TABLE* ST, EFI_FILE_PROTOCOL* file, wchar_t* fil
 }
 
 EFI_FILE_PROTOCOL* open_file(EFI_FILE_PROTOCOL* volume, CHAR16* filename){
-    EFI_STATUS status;
     EFI_FILE_PROTOCOL* file; //holds file
 
     status = uefi_call_wrapper(volume->Open, 5, volume, &file, filename, EFI_FILE_MODE_READ, 0); //no need for attributes, only for creating files
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to open file in func open_file, Open", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to open file in func open_file, Open", status);
     return file;
 }
 
-EFI_FILE_PROTOCOL* open_volume(EFI_SYSTEM_TABLE* ST, EFI_HANDLE IH){
+EFI_FILE_PROTOCOL* open_volume(){
     //image interface
-    EFI_STATUS status;
-    EFI_BOOT_SERVICES* BS = ST->BootServices;
     EFI_LOADED_IMAGE* loadedImage = NULL; //stores info about current uefi app + disk volume
     EFI_FILE_IO_INTERFACE* fsInterface; 
     EFI_FILE_PROTOCOL* volume;
@@ -711,17 +901,17 @@ EFI_FILE_PROTOCOL* open_volume(EFI_SYSTEM_TABLE* ST, EFI_HANDLE IH){
 
     //get loaded image info, puts info into loadedImage
     status = uefi_call_wrapper(BS->HandleProtocol, 3, IH, &imgGuid, (void**)&loadedImage);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to get current loaded image info in func open_volume, HandleProtocol", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to get current loaded image info in func open_volume, HandleProtocol", status);
     //get volume handle, gets fs from the disk
     status = uefi_call_wrapper(BS->HandleProtocol, 3, loadedImage->DeviceHandle, &fsGuid, (void*)&fsInterface);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to get fs from disk(device handle) in func open_volume, HandleProtocol", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to get fs from disk(device handle) in func open_volume, HandleProtocol", status);
     //open root of the filesystem
     status = uefi_call_wrapper(fsInterface->OpenVolume, 2, fsInterface, &volume);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to open fs root in func open_volume, open_volume", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to open fs root in func open_volume, open_volume", status);
     return volume;
 }
 
-void print_config_tables(EFI_SYSTEM_TABLE* ST){
+void print_config_tables(){
     EFI_GUID GUIDTableKeys[] = {
         {0x8868e871,0xe4f1,0x11d3,{0xbc,0x22,0x00,0x80,0xc7,0x3c,0x88,0x81}},
         {0xeb9d2d30,0x2d88,0x11d3,{0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}},
@@ -785,9 +975,7 @@ void print_config_tables(EFI_SYSTEM_TABLE* ST){
     Print(L"----------END----------\r\n");
 }
 
-void print_memory_map(EFI_SYSTEM_TABLE* ST, UINTN memory_map_size, EFI_MEMORY_DESCRIPTOR* memory_map, UINTN memory_map_key, UINTN memory_map_descriptor_size, UINT32 memory_map_descriptor_version){
-    EFI_STATUS status;
-    EFI_INPUT_KEY key;
+void print_memory_map(UINTN memory_map_size, EFI_MEMORY_DESCRIPTOR* memory_map, UINTN memory_map_key, UINTN memory_map_descriptor_size, UINT32 memory_map_descriptor_version){
     UINT16* type_arr[] = {
     L"EfiReservedMemoryType",
     L"EfiLoaderCode", //yes
@@ -827,16 +1015,16 @@ void print_memory_map(EFI_SYSTEM_TABLE* ST, UINTN memory_map_size, EFI_MEMORY_DE
             totalMapped += MM->NumberOfPages;
             if(MM->Type == EfiConventionalMemory || MM->Type == EfiPersistentMemory){
                 status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_GREEN, EFI_GREEN));
-                if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
+                if(EFI_ERROR(status)) crashout(L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
                 totalUsable += MM->NumberOfPages;
             }
             else if(MM->Type == EfiLoaderCode || MM->Type == EfiLoaderData){
                 status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_BLUE, EFI_BLUE));
-                if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
+                if(EFI_ERROR(status)) crashout(L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
             }
             else{
                 status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_TEXT_ATTR(EFI_RED, EFI_RED));
-                if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
+                if(EFI_ERROR(status)) crashout(L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
             }
             if(MM->Type == EfiConventionalMemory){
                 totalConventional += MM->NumberOfPages;
@@ -844,16 +1032,16 @@ void print_memory_map(EFI_SYSTEM_TABLE* ST, UINTN memory_map_size, EFI_MEMORY_DE
             Print(L" ");
             //reset color
             status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
-            if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
+            if(EFI_ERROR(status)) crashout(L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
             Print(L"%s ", type_arr[MM->Type]);
         }
         else{
             status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, BACKGROUND_COLOR);
-            if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
+            if(EFI_ERROR(status)) crashout(L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
             Print(L" ");
             //reset color
             status = uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, FONT_COLOR);
-            if(EFI_ERROR(status)) crashout(ST, L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
+            if(EFI_ERROR(status)) crashout(L"Failed to set ConOut attribute in func print_memory_map, SetAttribute", status);
             Print(L"0x%x ", MM->Type);
         }
         Print(L" ");
@@ -910,21 +1098,18 @@ void get_memory_map_highest_address(UINTN memory_map_size, EFI_MEMORY_DESCRIPTOR
     *high = highest_addr;
 }
 
-void get_memory_map(EFI_SYSTEM_TABLE* ST, UINTN* memory_map_size, UINTN* memory_map_size_pages, EFI_MEMORY_DESCRIPTOR** memory_map, UINTN* memory_map_key, UINTN* memory_map_descriptor_size, UINT32* memory_map_descriptor_version){
-    EFI_STATUS status;
-    EFI_BOOT_SERVICES* BS = ST->BootServices;
-
+void get_memory_map(UINTN* memory_map_size, UINTN* memory_map_size_pages, EFI_MEMORY_DESCRIPTOR** memory_map, UINTN* memory_map_key, UINTN* memory_map_descriptor_size, UINT32* memory_map_descriptor_version){
     if((*memory_map) != NULL){
         Print(L"Freeing previous memory map at %lx...\r\n", *memory_map);
         status = uefi_call_wrapper(BS->FreePages, 2, *memory_map, *memory_map_size_pages);
-        if(EFI_ERROR(status)) crashout(ST, L"Error freeing previously allocated memory map in func get_memory_map, FreePages", status);
+        if(EFI_ERROR(status)) crashout(L"Error freeing previously allocated memory map in func get_memory_map, FreePages", status);
     }
 
     *memory_map_size = 0;
     //get memory size of memory map
     status = uefi_call_wrapper(BS->GetMemoryMap, 5, memory_map_size, NULL, memory_map_key, memory_map_descriptor_size, memory_map_descriptor_version); //all are type*
     if(status != EFI_BUFFER_TOO_SMALL){
-        if(EFI_ERROR(status)) crashout(ST, L"Error when getting size of memory map + reason is not because buffer too small, in func get_memory_map, GetMemoryMap", status);
+        if(EFI_ERROR(status)) crashout(L"Error when getting size of memory map + reason is not because buffer too small, in func get_memory_map, GetMemoryMap", status);
     }
     *memory_map_size += (*memory_map_descriptor_size) * 20; //20 more entries
     *memory_map_size_pages = ((*memory_map_size) + 0xFFF)/0x1000;
@@ -937,18 +1122,17 @@ void get_memory_map(EFI_SYSTEM_TABLE* ST, UINTN* memory_map_size, UINTN* memory_
     *memory_map_size += (*memory_map_descriptor_size) * 5;
     //get memory map
     status = uefi_call_wrapper(BS->GetMemoryMap, 5, memory_map_size, *memory_map, memory_map_key, memory_map_descriptor_size, memory_map_descriptor_version);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed when getting memory map in func get_memory_map, GetMemoryMap", status);
+    if(EFI_ERROR(status)) crashout(L"Failed when getting memory map in func get_memory_map, GetMemoryMap", status);
 }
 
-void print_logo(EFI_SYSTEM_TABLE* ST){
-    EFI_STATUS status;
+void print_logo(){
     //CHAR16* oslogo = L"                                   _   _    ___\r\n                                  | | | |  / _ \\\r\n    _   _                  _      | |_| | |  __/\r\n   | \\ | |  _   _    ___  | | __   \\__,_|  \\___|   / _ \\  / ___| \r\n   |  \\| | | | | |  / __| | |/ /      __   _      | | | | \\___ \\ \r\n   | |\\  | | |_| | | (__  |   <      / _| (_)     | |_| |  ___) |\r\n   |_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |      \\___/  |____/ \r\n                                    |  _| | |                    \r\n                                    |_|   |_|                    \r\n               \"operating system of the future\" (TM)\r\n";
     CHAR16* oah = L"                                   _   _    ___\r\n                                  | | | |  / _ \\\r\n    _   _                  _      | |_| | |  __/   ____              _\r\n   | \\ | |  _   _    ___  | | __   \\__,_|  \\___|  | __ )  ___   ___ | |\r\n   |  \\| | | | | |  / __| | |/ /      __   _      |  _ \\ / _ \\ / _ \\| __| \r\n   | |\\  | | |_| | | (__  |   <      / _| (_)     | |_) | (_) | (_) | |_\r\n   |_| \\_|  \\__,_|  \\___| |_|\\_\\    | |_  | |     |____/ \\___/ \\___/ \\__|\r\n                                    |  _| | |\r\n                                    |_|   |_|\r\n                   \"operating system of the future\" (TM)\r\n";
     status = uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, oah);
-    if(EFI_ERROR(status)) crashout(ST, L"Failed to print the thing in func print_logo, OutputString", status);
+    if(EFI_ERROR(status)) crashout(L"Failed to print the thing in func print_logo, OutputString", status);
 }
 
-void print_info(EFI_SYSTEM_TABLE* ST){
+void print_info(){
     Print(L"Firmware Vendor: %s\r\n", ST->FirmwareVendor);
     Print(L"System UEFI firmware revision: %d.%d\r\n", (ST->FirmwareRevision >> 16) && 0xFFFF, ST->FirmwareRevision & 0xFFFF);
 
@@ -1023,3 +1207,44 @@ void triple_fault(){
     );
 }
 
+//string functions implemented
+int kmemcmp(const void* a, const void* b, unsigned long n)
+{
+    const unsigned char* p1 = (const unsigned char*)a;
+    const unsigned char* p2 = (const unsigned char*)b;
+
+    for (unsigned long i = 0; i < n; i++) {
+        if (p1[i] != p2[i])
+            return (int)p1[i] - (int)p2[i];
+    }
+
+    return 0;
+}
+void* kmemcpy(void* dest, const void* src, unsigned long n)
+{
+    unsigned char* d = (unsigned char*)dest;
+    const unsigned char* s = (const unsigned char*)src;
+
+    for (unsigned long i = 0; i < n; i++)
+        d[i] = s[i];
+
+    return dest;
+}
+void* kmemset(void* dest, int value, unsigned long n)
+{
+    unsigned char* d = (unsigned char*)dest;
+
+    for (unsigned long i = 0; i < n; i++)
+        d[i] = (unsigned char)value;
+
+    return dest;
+}
+unsigned long kstrlen(const char* str)
+{
+    unsigned long len = 0;
+
+    while (str[len] != '\0')
+        len++;
+
+    return len;
+}

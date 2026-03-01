@@ -51,14 +51,20 @@ typedef struct{
     EFI_CONFIGURATION_TABLE*           ConfigTable;
     uint32_t                           ConfigTableEntriesCount;
 
-    EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* GOP;
-    EFI_PHYSICAL_ADDRESS               fb; //backbuffer in bootloader, frontbuffer in kernel
+    EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* GOP; //frontbuffer in here
+    uint32_t*                          fb; //backbuffer
+    //values unset by bootloader are indented
+        uint32_t pitch;
+
+
+    EFI_PHYSICAL_ADDRESS               dirty_tilemap_addr; //map
+    uint64_t                           dirty_tiles_x; //number of tiles horizontal
+    uint64_t                           dirty_tiles_y; //number of tiles vertical
+    uint64_t                           dirty_tile_size; //size of tile
 
     EFI_PHYSICAL_ADDRESS               kernelStack;
-    uint32_t                           kernelStackSizePages;
 
     EFI_PHYSICAL_ADDRESS               kernelImageStart;
-    uint32_t                           kernelImageSizePages;
 
     KERNEL_PMM_RANGE                   kernelPMMRange;
     EFI_PHYSICAL_ADDRESS               kernel_resource_addrs[3];
@@ -81,15 +87,15 @@ extern uint8_t Terminus8x16_Bold[];
 
 extern KERNEL_CONTEXT_TABLE* global_ctx;
 
-void update_framebuffer(KERNEL_CONTEXT_TABLE* ctx);
+void update_framebuffer();
 
-void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con);
+void print_memory_map(KERNEL_TEXT_OUTPUT* Con);
 
 //config table related
 void* getConfigTable(EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries, uint8_t tableindex);
-void viewConfigTables(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* con, EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries);
+void viewConfigTables(KERNEL_TEXT_OUTPUT* con, EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries);
 
-void printGUID(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* con, EFI_GUID* guid);
+void printGUID(KERNEL_TEXT_OUTPUT* con, EFI_GUID* guid);
 uint8_t cmpGUID(EFI_GUID* guid1, EFI_GUID* guid2);
 
 typedef void (*Kernel_entry)(KERNEL_CONTEXT_TABLE*);
@@ -114,24 +120,26 @@ void heap_free(KERNEL_HEAP* heap, void* addr, uint64_t pages);
 void heap_display(KERNEL_HEAP* heap, EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut);
 */
 
-
 //graphical functions
 void NVIDEOParseHeader(KERNEL_NVIDEO* video, uint8_t* addr);
-void GOPPlayVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bool loop);
-void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* img);
-void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char* str, ...);
-void printFloat(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec);
-void printUfloat(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec);
-void printInt(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, int64_t num, uint8_t base);
-void printUint(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint64_t num, uint8_t base);
-void printString(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char* string);
-void printChar(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char ascii_char);
-void GOPDrawRect(EFI_GOP* GOP, uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color, uint8_t fill);
-void GOPPutPixel(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t color);
+void GOPPlayVideo(uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bool loop);
+void GOPDrawImage(uint32_t x, uint32_t y, KERNEL_NVIDEO* img);
+void printf(KERNEL_TEXT_OUTPUT* ConOut, char* str, ...);
+void printFloat(KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec);
+void printUfloat(KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec);
+void printInt(KERNEL_TEXT_OUTPUT* ConOut, int64_t num, uint8_t base);
+void printUint(KERNEL_TEXT_OUTPUT* ConOut, uint64_t num, uint8_t base);
+void printString(KERNEL_TEXT_OUTPUT* ConOut, char* string);
+void printChar(KERNEL_TEXT_OUTPUT* ConOut, char ascii_char);
+void GOPDrawRect(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color, uint8_t fill);
+static inline void GOPPutPixel(uint32_t x, uint32_t y, uint32_t pixel);
 void printd(char* str, ...);
 
-
-void* memcpy(void* source, void* dest, uint64_t size);
+void* kmemcpy(void* dest, const void* source, uint64_t size);
+void* kmemset(void* dest, int value, uint64_t size);
+void kmemset32(uint32_t* dest, uint32_t value, uint64_t count);
+int kmemcmp(const void* a, const void* b, uint64_t size);
+void* kmemmove(void* dest, const void* source, uint64_t size);
 uint32_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 uint32_t hex(uint32_t hex);
 void cpuid(int code, uint32_t* a, uint32_t* d);

@@ -14,14 +14,23 @@ HEADER:
     frame count(uint32_t):
 
 
-
 DATA:
     frame data begin at offset 16
     (ptr+16)
 
 
+very good songs(vel):
+"cat loving"
+"can you look that up"
+https://www.youtube.com/watch?v=7gwvBrlUiww
 
+"sanae san is 168bpm"
+https://www.youtube.com/watch?v=WX8yoPEJL2Q
 
+"thoughts on channel?"
+https://www.youtube.com/@PixelPaddleProduction/shorts
 
-
+"thoughts on channel :3"
+"thoughts on cirno channel"
+https://www.youtube.com/@ChirumixMC/shorts
 

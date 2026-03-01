@@ -7,23 +7,18 @@ KERNEL_CONTEXT_TABLE* global_ctx;
 
 void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
-    //disable PIC because not useful in the big 2025
+    //disable PIC
     PIC_disable();
-    //swap the display buffers so the GOP framebuffer is actually the backbuffer
     
-    {
-        EFI_PHYSICAL_ADDRESS backbuf = ctx->fb;
-        ctx->fb = ctx->GOP->FrameBufferBase; //set fb to vram
-        ctx->GOP->FrameBufferBase = backbuf; //set the GOP address to backbuffer
-    }
-    //memcpy((void*)ctx->fb, (void*)ctx->GOP->FrameBufferBase, ctx->GOP->FrameBufferSize);
-
     //make ctx global
     global_ctx = ctx;
 
+    //fill in some ctx values
+    ctx->pitch = (uint32_t) ctx->GOP->Info->PixelsPerScanLine;
+
     //clear screen
-    GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
-    update_framebuffer(ctx);
+    GOPDrawRect(0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
+    update_framebuffer();
 
     uint8_t CODE_SEG;
     uint8_t DATA_SEG;
@@ -31,8 +26,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     GDT_initialize(&CODE_SEG, &DATA_SEG);
 
     IDT_initialize(CODE_SEG, 0);
-
-    //printd("\r\nIDT loaded!\r\n");
 
     uint8_t versionMajor = 1;
     uint8_t versionMinor = 6;
@@ -45,8 +38,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
  
     /*
     for(int i=0;i<256;i++){
-        printf(ctx->GOP, &ConOut, "stub %lx: %lx\r\n", &isr_stub_0, (uint64_t)((uint64_t)isr_stub_0)+i*(((uint64_t)isr_stub_1)-(uint64_t)isr_stub_0));
-        memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
+        printf(&ConOut, "stub %lx: %lx\r\n", &isr_stub_0, (uint64_t)((uint64_t)isr_stub_0)+i*(((uint64_t)isr_stub_1)-(uint64_t)isr_stub_0));
+        update_framebuffer()
     }
     while(1);
     */
@@ -97,56 +90,55 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         title = (KERNEL_TEXT_OUTPUT){Terminus8x16_Bold, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
         ConOut = (KERNEL_TEXT_OUTPUT){Terminus8x16_Normal, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
         //clear screen
-        GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
+        GOPDrawRect(0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x34e5eb), true);
         
         /*
         bool fill = true;
         uint32_t screenX = ctx->GOP->Info->HorizontalResolution - 1;
         uint32_t screenYFraction = ctx->GOP->Info->VerticalResolution / 5;
-        GOPDrawRect(ctx->GOP, 0, 0, screenX, screenYFraction - 1, hex(0x55CDFC), fill);
-        GOPDrawRect(ctx->GOP, 0, screenYFraction, screenX, 2*screenYFraction - 1, hex(0xF7A8B8), fill);
-        GOPDrawRect(ctx->GOP, 0, 2*screenYFraction, screenX, 3*screenYFraction - 1, hex(0xFFFFFF), fill);
-        GOPDrawRect(ctx->GOP, 0, 3*screenYFraction, screenX, 4*screenYFraction - 1, hex(0xF7A8B8), fill);
-        GOPDrawRect(ctx->GOP, 0, 4*screenYFraction, screenX, 5*screenYFraction - 1, hex(0x55CDFC), fill);
+        GOPDrawRect(0, 0, screenX, screenYFraction - 1, hex(0x55CDFC), fill);
+        GOPDrawRect(0, screenYFraction, screenX, 2*screenYFraction - 1, hex(0xF7A8B8), fill);
+        GOPDrawRect(0, 2*screenYFraction, screenX, 3*screenYFraction - 1, hex(0xFFFFFF), fill);
+        GOPDrawRect(0, 3*screenYFraction, screenX, 4*screenYFraction - 1, hex(0xF7A8B8), fill);
+        GOPDrawRect(4*screenYFraction, screenX, 5*screenYFraction - 1, hex(0x55CDFC), fill);
         */
-        GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x34e5eb), true);
         
-        printf(ctx->GOP, &ConOut, "(operating system of the future)\r\n");
-        printf(ctx->GOP, &ConOut, "Display pixel format: %d\r\n", ctx->GOP->Info->PixelFormat);
-        printf(ctx->GOP, &ConOut, "CPU Vendor: %s\r\n", &CPUVendor);
-        printf(ctx->GOP, &ConOut, "Video resolution: %dx%d / format %d \r\n/ frame %d/%d\r\n", bad_apple.width, bad_apple.height, bad_apple.format, bad_apple.frameCounter+1, bad_apple.frameCount);
+        printf(&ConOut, "(operating system of the future)\r\n");
+        printf(&ConOut, "Display pixel format: %d\r\n", ctx->GOP->Info->PixelFormat);
+        printf(&ConOut, "CPU Vendor: %s\r\n", &CPUVendor);
+        printf(&ConOut, "Video resolution: %dx%d / format %d \r\n/ frame %d/%d\r\n", bad_apple.width, bad_apple.height, bad_apple.format, bad_apple.frameCounter+1, bad_apple.frameCount);
 
-        printf(ctx->GOP, &title, "N");
+        printf(&title, "N");
         title.frontColor = 0xFF8D00;title.backColor = 0x000000;
-        printf(ctx->GOP, &title, "u");
+        printf(&title, "u");
         title.frontColor = 0xFFEE00;title.backColor = 0x000000;
-        printf(ctx->GOP, &title, "c");
+        printf(&title, "c");
         title.frontColor = 0x028121;title.backColor = 0x000000;
-        printf(ctx->GOP, &title, "k");
+        printf(&title, "k");
         title.frontColor = 0xFF10F0;title.backColor = 0x000000;
-        printf(ctx->GOP, &title, " ");
+        printf(&title, " ");
         title.frontColor = 0x004CFF;title.backColor = 0x000000;
-        printf(ctx->GOP, &title, "O");
+        printf(&title, "O");
         title.frontColor = 0x770088;title.backColor = 0x000000;
-        printf(ctx->GOP, &title, "S");
+        printf(&title, "S");
         title.frontColor = 0xFF10F0;title.backColor = 0x000000;
 
-        printf(ctx->GOP, &title, "\r\n Version %u.%u!\r\n", versionMajor, versionMinor);
+        printf(&title, "\r\n Version %u.%u!\r\n", versionMajor, versionMinor);
 
         /*
         heap_display(ctx->heap, ctx->GOP, &HeapOut);
-        printf(ctx->GOP, &ConOut, "\r\nheap page allocator: \r\n%lx, +32768 pages, %ld MB\r\n", ctx->heap->heap, 32768*4*1024/1024/1024);
-        printf(ctx->GOP, &ConOut, "\r\n\nsubpage allocator: \r\n%lx to %lx\r\n", alloc.freeListStart, alloc.freeListEnd);
-        printf(ctx->GOP, &ConOut, "1st subpage: %lx\r\n", subPtr);
-        printf(ctx->GOP, &ConOut, "2nd subpage: %lx\r\n", subPtr2);
+        printf(&ConOut, "\r\nheap page allocator: \r\n%lx, +32768 pages, %ld MB\r\n", ctx->heap->heap, 32768*4*1024/1024/1024);
+        printf(&ConOut, "\r\n\nsubpage allocator: \r\n%lx to %lx\r\n", alloc.freeListStart, alloc.freeListEnd);
+        printf(&ConOut, "1st subpage: %lx\r\n", subPtr);
+        printf(&ConOut, "2nd subpage: %lx\r\n", subPtr2);
         */
 
-        viewConfigTables(ctx->GOP, &ConOut, ctx->ConfigTable, ctx->ConfigTableEntriesCount);
+        viewConfigTables(&ConOut, ctx->ConfigTable, ctx->ConfigTableEntriesCount);
 
-        printf(ctx->GOP, &ConOut, "size of stuff: %u + %u\r\n", sizeof(*ctx), ctx->MemoryMapSizeBytes);
+        printf(&ConOut, "size of stuff: %u + %u\r\n", sizeof(*ctx), ctx->MemoryMapSizeBytes);
 
         //logo
-        //GOPDrawImage(ctx->GOP, ctx->GOP->Info->HorizontalResolution - nuckos_logo.width - 10, ctx->GOP->Info->VerticalResolution - nuckos_logo.height - 10, &nuckos_logo);
+        //GOPDrawImage(ctx->GOP->Info->HorizontalResolution - nuckos_logo.width - 10, ctx->GOP->Info->VerticalResolution - nuckos_logo.height - 10, &nuckos_logo);
 
         //PS/2 input
         /*
@@ -154,22 +146,22 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         
         if(!is_mouse){ //keyboard
             if(scancode & 0x80){
-                printf(ctx->GOP, &ConOut, "BREAK\r\n");
+                printf(&ConOut, "BREAK\r\n");
             }
             else{
-                printf(ctx->GOP, &ConOut, "MAKE\r\n");
+                printf(&ConOut, "MAKE\r\n");
             }
-            printf(ctx->GOP, &ConOut, ":%x\r\n", scancode);
+            printf(&ConOut, ":%x\r\n", scancode);
         }
         else{ //mouse
             if(mouseInitError){
-                printf(ctx->GOP, &ConOut, "mouse init error\r\n");
+                printf(&ConOut, "mouse init error\r\n");
             }
             else if(mouseSetSampleError){
-                printf(ctx->GOP, &ConOut, "mouse set sample rate error\r\n");
+                printf(&ConOut, "mouse set sample rate error\r\n");
             }
             else{
-                printf(ctx->GOP, &ConOut, "mouse input: %d, %d, %x\r\n", dx, dy, lrm);
+                printf(&ConOut, "mouse input: %d, %d, %x\r\n", dx, dy, lrm);
                 pointerX += dx;
                 pointerY += dy;
                 if(lrm & 1){
@@ -186,20 +178,20 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         */
 
         //pointer icon
-        //GOPDrawImage(ctx->GOP, pointerX, pointerY, &pointer_icon);
+        //GOPDrawImage(pointerX, pointerY, &pointer_icon);
 
-        GOPPlayVideo(ctx->GOP, ctx->GOP->Info->HorizontalResolution - bad_apple.width, 0, &bad_apple, true);
+        GOPPlayVideo(ctx->GOP->Info->HorizontalResolution - bad_apple.width, 0, &bad_apple, true);
 
         //copy framebuffer
-        update_framebuffer(ctx);
+        update_framebuffer();
 
         //do this to test interrupts i guess
-        break;
+        //break;
     }
 
-    GOPDrawRect(ctx->GOP, 0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x20207F), true);
-    printf(ctx->GOP, &title, "interrupting...\r\n");
-    update_framebuffer(ctx);
+    GOPDrawRect(0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x20207F), true);
+    printf(&title, "interrupting...\r\n");
+    update_framebuffer();
     
     asm volatile(
         ".intel_syntax noprefix\n"
@@ -217,33 +209,33 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     );
     
     //printf(ctx->GOP, &title, "Done!\r\n");
-    update_framebuffer(ctx);
+    update_framebuffer();
     while(true);
 }
 
-void update_framebuffer(KERNEL_CONTEXT_TABLE* ctx){
-    UINT8* dst = (UINT8*)ctx->GOP->FrameBufferBase;
-    UINT8* src = (UINT8*)ctx->fb;
+void update_framebuffer(){
+    uint8_t* dst = (uint8_t*)global_ctx->GOP->FrameBufferBase;
+    uint8_t* src = (uint8_t*)global_ctx->fb;
 
-    UINTN width  = ctx->GOP->Info->HorizontalResolution;
-    UINTN height = ctx->GOP->Info->VerticalResolution;
-    UINTN pitch  = ctx->GOP->Info->PixelsPerScanLine * 4; // 4 bytes per pixel (RGBA)
+    uint64_t width  = global_ctx->GOP->Info->HorizontalResolution;
+    uint64_t height = global_ctx->GOP->Info->VerticalResolution;
+    uint64_t pitch  = global_ctx->GOP->Info->PixelsPerScanLine * 4; // 4 bytes per pixel (RGBA)
 
-    UINTN row_bytes = width * 4;
+    uint64_t row_bytes = width * 4;
 
-    for (UINTN y = 0; y < height; y++) {
-        UINT8* dst_row = dst + (y * pitch);
-        UINT8* src_row = src + (y * row_bytes);
+    for (uint64_t y = 0; y < height; y++) {
+        uint8_t* dst_row = dst + (y * pitch);
+        uint8_t* src_row = src + (y * row_bytes);
 
-        memcpy(dst_row, src_row, row_bytes);
+        kmemcpy(dst_row, src_row, row_bytes);
     }
 }
 
 //NEW physical memory manager related functions
-void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con){
-    uint64_t memory_map_size = ctx->MemoryMapSizeBytes;
-    uint64_t memory_map_size_pages = ctx->MemoryMapSizePages;
-    uint64_t memory_map_descriptor_size = ctx->MemoryMapDescriptorSize;
+void print_memory_map(KERNEL_TEXT_OUTPUT* Con){
+    uint64_t memory_map_size = global_ctx->MemoryMapSizeBytes;
+    uint64_t memory_map_size_pages = global_ctx->MemoryMapSizePages;
+    uint64_t memory_map_descriptor_size = global_ctx->MemoryMapDescriptorSize;
 
     char* type_arr[] = {
     "EfiReservedMemoryType",
@@ -266,7 +258,7 @@ void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con){
     };
 
     uint32_t entries = memory_map_size / memory_map_descriptor_size;
-    EFI_MEMORY_DESCRIPTOR* MM = ctx->MemoryMap;
+    EFI_MEMORY_DESCRIPTOR* MM = global_ctx->MemoryMap;
     
     //size of conventional memory in number of 4 KiB pages
     uint64_t totalMapped = 0;
@@ -276,9 +268,9 @@ void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con){
     uint32_t oldBackColor = Con->backColor;
 
     //print other info
-    printf(ctx->GOP, Con, "Memory Map Size: %lu\r\nSize of each entry: %lu\r\nTotal entries: %lu\r\n", memory_map_size, memory_map_descriptor_size, entries);
+    printf(Con, "Memory Map Size: %lu\r\nSize of each entry: %lu\r\nTotal entries: %lu\r\n", memory_map_size, memory_map_descriptor_size, entries);
     for(uint32_t i = 0;i < entries;i++){
-        printf(ctx->GOP, Con, "#%u - ", i+1);
+        printf(Con, "#%u - ", i+1);
         
         if(MM->Type < sizeof(type_arr)/sizeof(type_arr[0])){
             //add to mem size counters
@@ -292,50 +284,50 @@ void print_memory_map(KERNEL_CONTEXT_TABLE* ctx, KERNEL_TEXT_OUTPUT* Con){
                 Con->frontColor = hex(0xFF0000);
                 Con->backColor = hex(0xFF0000); //red
             }
-            printf(ctx->GOP, Con, " ");
+            printf(Con, " ");
             //reset color
             Con->frontColor = oldColor;
             Con->backColor = oldBackColor;
-            printf(ctx->GOP, Con, "%s ", type_arr[MM->Type]);
+            printf(Con, "%s ", type_arr[MM->Type]);
         }
         else{
             Con->frontColor = hex(0xFFFF00);
             Con->backColor = hex(0xFFFF00); //yellow
-            printf(ctx->GOP, Con, " ");
+            printf(Con, " ");
             //reset color
             Con->frontColor = oldColor;
             Con->backColor = oldBackColor;
-            printf(ctx->GOP, Con, "0x%x ", MM->Type);
+            printf(Con, "0x%x ", MM->Type);
         }
-        printf(ctx->GOP, Con, " ");
+        printf(Con, " ");
 
-        printf(ctx->GOP, Con, "Range:0x%lx - 0x%lx ", MM->PhysicalStart, (MM->PhysicalStart + (MM->NumberOfPages*4096) - 1));
-        if(MM->Attribute & 0x1)printf(ctx->GOP, Con, "UC ");
-        if(MM->Attribute & 0x2)printf(ctx->GOP, Con, "WC ");
-        if(MM->Attribute & 0x4)printf(ctx->GOP, Con, "WT ");
-        if(MM->Attribute & 0x8)printf(ctx->GOP, Con, "WB ");
-        if(MM->Attribute & 0x10)printf(ctx->GOP, Con, "UCE ");
-        if(MM->Attribute & 0x1000)printf(ctx->GOP, Con, "WP ");
-        if(MM->Attribute & 0x2000)printf(ctx->GOP, Con, "RP ");
-        if(MM->Attribute & 0x4000)printf(ctx->GOP, Con, "XP ");
-        if(MM->Attribute & 0x8000)printf(ctx->GOP, Con, "NV ");
-        if(MM->Attribute & 0x10000)printf(ctx->GOP, Con, "MORE_RELIABLE ");
-        if(MM->Attribute & 0x20000)printf(ctx->GOP, Con, "RO ");
-        if(MM->Attribute & 0x40000)printf(ctx->GOP, Con, "SP ");
-        if(MM->Attribute & 0x80000)printf(ctx->GOP, Con, "CRYPTO ");
-        if(MM->Attribute & 0x8000000000000000)printf(ctx->GOP, Con, "RUNTIME ");
-        if(MM->Attribute & 0x4000000000000000)printf(ctx->GOP, Con, "ISA_VALID ");
-        if(MM->Attribute & 0x0FFFF00000000000)printf(ctx->GOP, Con, "ISA_MASK ");
+        printf(Con, "Range:0x%lx - 0x%lx ", MM->PhysicalStart, (MM->PhysicalStart + (MM->NumberOfPages*4096) - 1));
+        if(MM->Attribute & 0x1)printf(Con, "UC ");
+        if(MM->Attribute & 0x2)printf(Con, "WC ");
+        if(MM->Attribute & 0x4)printf(Con, "WT ");
+        if(MM->Attribute & 0x8)printf(Con, "WB ");
+        if(MM->Attribute & 0x10)printf(Con, "UCE ");
+        if(MM->Attribute & 0x1000)printf(Con, "WP ");
+        if(MM->Attribute & 0x2000)printf(Con, "RP ");
+        if(MM->Attribute & 0x4000)printf(Con, "XP ");
+        if(MM->Attribute & 0x8000)printf(Con, "NV ");
+        if(MM->Attribute & 0x10000)printf(Con, "MORE_RELIABLE ");
+        if(MM->Attribute & 0x20000)printf(Con, "RO ");
+        if(MM->Attribute & 0x40000)printf(Con, "SP ");
+        if(MM->Attribute & 0x80000)printf(Con, "CRYPTO ");
+        if(MM->Attribute & 0x8000000000000000)printf(Con, "RUNTIME ");
+        if(MM->Attribute & 0x4000000000000000)printf(Con, "ISA_VALID ");
+        if(MM->Attribute & 0x0FFFF00000000000)printf(Con, "ISA_MASK ");
 
-        printf(ctx->GOP, Con, "\r\n");
+        printf(Con, "\r\n");
         //go to next one
         MM = (EFI_MEMORY_DESCRIPTOR*)((uint8_t*)MM + memory_map_descriptor_size);
-        memcpy((void*)ctx->GOP->FrameBufferBase, (void*)ctx->fb, ctx->GOP->FrameBufferSize);
+        update_framebuffer();
         //break here
         //for(uint32_t i=0;i<400000;i++);
     }
-    printf(ctx->GOP, Con, "Total mapped memory: %d pages/%f GB/%f GiB\r\n", totalMapped, totalMapped/250000.0f, totalMapped/262144.0f);
-    printf(ctx->GOP, Con, "Total usable memory: %d pages/%f GB/%f GiB\r\n", totalUsable, totalUsable/250000.0f, totalUsable/262144.0f);
+    printf(Con, "Total mapped memory: %d pages/%f GB/%f GiB\r\n", totalMapped, totalMapped/250000.0f, totalMapped/262144.0f);
+    printf(Con, "Total usable memory: %d pages/%f GB/%f GiB\r\n", totalUsable, totalUsable/250000.0f, totalUsable/262144.0f);
 }
 
 //config table related functions
@@ -390,7 +382,7 @@ void* getConfigTable(EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries, uint8_
     }
     return NULL;
 }
-void viewConfigTables(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* con, EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries){
+void viewConfigTables(KERNEL_TEXT_OUTPUT* con, EFI_CONFIGURATION_TABLE* tablePtr, uint64_t entries){
 
     static EFI_GUID GUIDTableKeys[] = {
         {0x8868e871,0xe4f1,0x11d3,{0xbc,0x22,0x00,0x80,0xc7,0x3c,0x88,0x81}},
@@ -434,25 +426,25 @@ void viewConfigTables(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* con, EFI_CONFIGURATION_T
     };
     EFI_CONFIGURATION_TABLE table;
 
-    printf(GOP, con, "Number of configuration table entries: %u\r\n", entries);
+    printf(con, "Number of configuration table entries: %u\r\n", entries);
     for(uint64_t entry = 0;entry < entries;entry++){
         table = tablePtr[entry];
-        printf(GOP, con, "Table #%u:", entry+1);
-        printGUID(GOP, con, &table.VendorGuid);
+        printf(con, "Table #%u:", entry+1);
+        printGUID(con, &table.VendorGuid);
         for(uint32_t guidIndex = 0;guidIndex < (sizeof(GUIDTableKeys)/sizeof(GUIDTableKeys[0]));guidIndex++){
             if(cmpGUID(&table.VendorGuid, &GUIDTableKeys[guidIndex])){
-                printf(GOP, con, "  %s", GUIDTableValues[guidIndex]);
+                printf(con, "  %s", GUIDTableValues[guidIndex]);
                 break;
             }
         }
-        printf(GOP, con, "  ptr: %lx\r\n", tablePtr->VendorTable);
+        printf(con, "  ptr: %lx\r\n", tablePtr->VendorTable);
     }
-    printf(GOP, con, "----------END----------\r\n");
+    printf(con, "----------END----------\r\n");
 }
 
-void printGUID(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* con, EFI_GUID* guid){
-    printf(GOP, con, "GUID: %x-%x-%x-", guid->Data1, guid->Data2, guid->Data3);
-    printf(GOP, con, "%x-%x-%x-%x-%x-%x-%x-%x",
+void printGUID(KERNEL_TEXT_OUTPUT* con, EFI_GUID* guid){
+    printf(con, "GUID: %x-%x-%x-", guid->Data1, guid->Data2, guid->Data3);
+    printf(con, "%x-%x-%x-%x-%x-%x-%x-%x",
         guid->Data4[0],
         guid->Data4[1],
         guid->Data4[2],
@@ -479,6 +471,7 @@ static inline void PIC_disable(){
     outb(0x21, 0xff); //mask master PIC
     outb(0xA1, 0xff); //mask slave PIC
 }
+
 
 /*
 //dynamic memory allocation functions
@@ -625,7 +618,7 @@ void NVIDEOParseHeader(KERNEL_NVIDEO* video, uint8_t* addr){
     video->frameCount = *(uint32_t*)(addr+12);
     video->frameCounter = 0;
 }
-void GOPPlayVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bool loop){
+void GOPPlayVideo(uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bool loop){
     if(video->frameCounter >= video->frameCount){
         return;
     }
@@ -633,7 +626,7 @@ void GOPPlayVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bo
         case 0: { //black and white, bitmap
             uint8_t* addr = (uint8_t*)(video->addr); //store original address
             video->addr = video->addr + ((video->frameCounter) * (((video->width+7) / 8) * video->height));
-            GOPDrawImage(GOP, x, y, video);
+            GOPDrawImage(x, y, video);
             video->addr = addr;
 
             (video->frameCounter)++;
@@ -660,7 +653,7 @@ void GOPPlayVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bo
             //Now p points to start of current frame’s runs
             uint8_t* addr = (uint8_t*)(video->addr);
             video->addr = p;
-            GOPDrawImage(GOP, x, y, video);
+            GOPDrawImage(x, y, video);
 
             video->addr = addr; //restore original address
 
@@ -672,7 +665,7 @@ void GOPPlayVideo(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* video, bo
         }
     }
 }
-void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* img){
+void GOPDrawImage(uint32_t x, uint32_t y, KERNEL_NVIDEO* img){
     switch(img->format){
         case 0: { //black and white, packed, imgwidth is number of pixels, imgheight is number of pixels
             uint32_t bpr = (img->width + 7) / 8; // bytes per row
@@ -696,7 +689,7 @@ void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* img){
                     for(int8_t shift = 7; shift >= 8 - bits_in_byte; shift--){
                         uint32_t mask = 1 << shift;
                         uint32_t color = (b & mask) ? 0xFFFFFFFF : 0xFF000000;
-                        GOPPutPixel(GOP, draw_x + (7 - shift), draw_y, color);
+                        GOPPutPixel(draw_x + (7 - shift), draw_y, color);
                     }
                 }
             }
@@ -717,7 +710,7 @@ void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* img){
                 for(int i=0; i < count && pixel < total; i++, pixel++){
                     uint32_t px = pixel % img->width;
                     uint32_t py = pixel / img->width;
-                    GOPPutPixel(GOP, x + px, y + py, color);
+                    GOPPutPixel(x + px, y + py, color);
                 }
             }
             break;
@@ -731,7 +724,7 @@ void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* img){
                     uint32_t color_byte = *(uint32_t*)(img->addr + row * bpr + col * 3);
                     uint32_t draw_x = x + col;
                     uint32_t draw_y = y + row;
-                    GOPPutPixel(GOP, draw_x, draw_y, hex(color_byte)); //color converted from RGB to ARGB
+                    GOPPutPixel(draw_x, draw_y, hex(color_byte)); //color converted from RGB to ARGB
                 }
             }
             break;
@@ -746,7 +739,7 @@ void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* img){
                     uint32_t draw_x = x + col;
                     uint32_t draw_y = y + row;
                     if(color_byte & 0xFF000000){
-                        GOPPutPixel(GOP, draw_x, draw_y, color_byte); //color is ARGB
+                        GOPPutPixel(draw_x, draw_y, color_byte); //color is ARGB
                     }
                 }
             }
@@ -754,14 +747,14 @@ void GOPDrawImage(EFI_GOP* GOP, uint32_t x, uint32_t y, KERNEL_NVIDEO* img){
         }
     }
 }
-void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char* str, ...){
+void printf(KERNEL_TEXT_OUTPUT* ConOut, char* str, ...){
     va_list args;
     va_start(args, str);
 
     bool longType = false;
     while (*str) {
         if(*str != '%'){ //if not a format specifier
-            printChar(GOP, ConOut, *str++);
+            printChar(ConOut, *str++);
             continue;
         }
         str++; //skip the '%'
@@ -770,7 +763,7 @@ void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char* str, ...){
             break;
         }
         if(*str == '%'){
-            printChar(GOP, ConOut, '%');
+            printChar(ConOut, '%');
             str++;
             continue;
         }
@@ -787,70 +780,70 @@ void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char* str, ...){
         char format = *str; //character
         switch(format){
             case 'c': //char
-                printChar(GOP, ConOut, (uint8_t)va_arg(args, int32_t));
+                printChar(ConOut, (uint8_t)va_arg(args, int32_t));
                 break;
             case 's': //string
-                printString(GOP, ConOut, (char*)va_arg(args, uint8_t*));
+                printString(ConOut, (char*)va_arg(args, uint8_t*));
                 break;
 
             case 'd':
             case 'i': //signed int
                 if(longType){
-                    printInt(GOP, ConOut, (int64_t)va_arg(args, int64_t), 10);
+                    printInt(ConOut, (int64_t)va_arg(args, int64_t), 10);
                 }
                 else{
-                    printInt(GOP, ConOut, (int64_t)va_arg(args, int32_t), 10); 
+                    printInt(ConOut, (int64_t)va_arg(args, int32_t), 10); 
                 }
                 break;
             
             case 'u': //unsigned int
                 if(longType){
-                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint64_t), 10);
+                    printUint(ConOut, (uint64_t) va_arg(args, uint64_t), 10);
                 }
                 else{
-                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint32_t), 10);
+                    printUint(ConOut, (uint64_t) va_arg(args, uint32_t), 10);
                 }
                 break;
 
             case 'o': //octal
                 if(longType){
-                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint64_t), 8);
+                    printUint(ConOut, (uint64_t) va_arg(args, uint64_t), 8);
                 }
                 else{
-                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint32_t), 8);
+                    printUint(ConOut, (uint64_t) va_arg(args, uint32_t), 8);
                 }
                 break;
             case 'x': //hex
             case 'X': //hex
                 if(longType){
-                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint64_t), 16);
+                    printUint(ConOut, (uint64_t) va_arg(args, uint64_t), 16);
                 }
                 else{
-                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint32_t), 16);
+                    printUint(ConOut, (uint64_t) va_arg(args, uint32_t), 16);
                 }
                 break;
 
             case 'p': //pointer
-                printUint(GOP, ConOut, (uint64_t)va_arg(args, void*), 16);
+                printUint(ConOut, (uint64_t)va_arg(args, void*), 16);
                 break;
             
             case 'f': //float
                 if(longType){
-                    printFloat(GOP, ConOut, (double) va_arg(args, double), 16); 
+                    printFloat(ConOut, (double) va_arg(args, double), 16); 
                 }
                 else{
-                    printFloat(GOP, ConOut, (double) va_arg(args, double), 6);
+                    printFloat(ConOut, (double) va_arg(args, double), 6);
                 }
                 break;
             case 'l':
-                printChar(GOP, ConOut, 'l');
+                printChar(ConOut, 'l');
                 break;
             case 'n': //nothing
                 break;
             default:
                 //nuh uh, print the character itself
-                printChar(GOP, ConOut, '%');
-                printChar(GOP, ConOut, format);
+                printChar(ConOut, '%');
+                printChar(ConOut, format);
                 str--;
                 break;
         }
@@ -858,42 +851,42 @@ void printf(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char* str, ...){
     }
     va_end(args);
 }
-void printFloat(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec){
+void printFloat(KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec){
     if(num < 0.0){
-        printChar(GOP, ConOut, '-');
+        printChar(ConOut, '-');
         num = -num;
     }
-    printUfloat(GOP, ConOut, num, prec);
+    printUfloat(ConOut, num, prec);
 }
-void printUfloat(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec){
-    printUint(GOP, ConOut, (uint64_t)num, 10); //print integer part
-    printChar(GOP, ConOut, '.');
+void printUfloat(KERNEL_TEXT_OUTPUT* ConOut, double num, uint8_t prec){
+    printUint(ConOut, (uint64_t)num, 10); //print integer part
+    printChar(ConOut, '.');
     num -= (double)(uint64_t)num;
     uint8_t digit;
     for(uint8_t c = 0;c < prec;c++){
         num *= 10.0;
         digit = (uint8_t)num;
-        printChar(GOP, ConOut, digit + '0');
+        printChar(ConOut, digit + '0');
         num -= digit;
     }
 }
-void printInt(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, int64_t num, uint8_t base){
+void printInt(KERNEL_TEXT_OUTPUT* ConOut, int64_t num, uint8_t base){
     if(num < 0){
-        printChar(GOP, ConOut, '-');
-        printUint(GOP, ConOut, (uint64_t)(-num), base);
+        printChar(ConOut, '-');
+        printUint(ConOut, (uint64_t)(-num), base);
         return;
     }
-    printUint(GOP, ConOut, num, base);
+    printUint(ConOut, num, base);
 }
-void printUint(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint64_t num, uint8_t base){
+void printUint(KERNEL_TEXT_OUTPUT* ConOut, uint64_t num, uint8_t base){
     if(base < 2 || base > 16)return;
 
-    if(base == 2)printString(GOP, ConOut, "0b");
-    else if(base == 8)printString(GOP, ConOut, "0o");
-    else if(base == 16)printString(GOP, ConOut, "0x");
+    if(base == 2)printString(ConOut, "0b");
+    else if(base == 8)printString(ConOut, "0o");
+    else if(base == 16)printString(ConOut, "0x");
 
     if(num == 0){
-        printChar(GOP, ConOut, '0');
+        printChar(ConOut, '0');
         return;
     }
 
@@ -908,16 +901,16 @@ void printUint(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, uint64_t num, uint8_t b
         buff[index] = charmap[num % base]; //push digit to buffer
         num /= base;
     }
-    printString(GOP, ConOut, (char*)&buff[index]);
+    printString(ConOut, (char*)&buff[index]);
 }
-void printString(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char* string){
+void printString(KERNEL_TEXT_OUTPUT* ConOut, char* string){
     while(*string){ //while it's not null
-        printChar(GOP, ConOut, *string++);
+        printChar(ConOut, *string++);
     }
 }
-void printChar(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char ascii_char){
-    uint32_t maxWidth = GOP->Info->HorizontalResolution / (ConOut->charWidth*ConOut->scaleX);
-    uint32_t maxHeight = GOP->Info->VerticalResolution / (ConOut->charHeight*ConOut->scaleY);
+void printChar(KERNEL_TEXT_OUTPUT* ConOut, char ascii_char){
+    uint32_t maxWidth = global_ctx->GOP->Info->HorizontalResolution / (ConOut->charWidth*ConOut->scaleX);
+    uint32_t maxHeight = global_ctx->GOP->Info->VerticalResolution / (ConOut->charHeight*ConOut->scaleY);
     if(ascii_char == 0){ //null character
         return;
     }
@@ -950,7 +943,7 @@ void printChar(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char ascii_char){
             uint32_t color = (row & (1 << (7 - dx))) ? ConOut->frontColor : ConOut->backColor;
             for(uint32_t scaleYOff = 0;scaleYOff < ConOut->scaleY;scaleYOff++){
                 for(uint32_t scaleXOff = 0;scaleXOff < ConOut->scaleX;scaleXOff++){
-                    GOPPutPixel(GOP, screenX+(dx*ConOut->scaleX)+scaleXOff, screenY+(dy*ConOut->scaleY)+scaleYOff, color);
+                    GOPPutPixel(screenX+(dx*ConOut->scaleX)+scaleXOff, screenY+(dy*ConOut->scaleY)+scaleYOff, color);
                 }
             }
         } 
@@ -965,7 +958,7 @@ void printChar(EFI_GOP* GOP, KERNEL_TEXT_OUTPUT* ConOut, char ascii_char){
         ConOut->cursorY = 0; //TODO: replace this line with scroll
     }
 }
-void GOPDrawRect(EFI_GOP* GOP, uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color, uint8_t fill){
+void GOPDrawRect(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color, uint8_t fill){
     //convert x, y to memory address
     uint32_t xmax = ((x1 > x2) ? x1 : x2);
     uint32_t xmin = ((x1 > x2) ? x2 : x1);
@@ -974,23 +967,24 @@ void GOPDrawRect(EFI_GOP* GOP, uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y
 
     if(!fill){
         for(uint32_t x = xmin;x <= xmax;x++){
-            GOPPutPixel(GOP, x, ymin, color);
-            GOPPutPixel(GOP, x, ymax, color);
+            GOPPutPixel(x, ymin, color);
+            GOPPutPixel(x, ymax, color);
         }
         for(uint32_t y = ymin+1;y < ymax;y++){
-            GOPPutPixel(GOP, xmin, y, color);
-            GOPPutPixel(GOP, xmax, y, color);
+            GOPPutPixel(xmin, y, color);
+            GOPPutPixel(xmax, y, color);
         }
     }
     else{
         for(uint32_t y = ymin;y <= ymax;y++){
             for(uint32_t x = xmin;x <= xmax;x++){
-                GOPPutPixel(GOP, x, y, color);
+                GOPPutPixel(x, y, color);
             }
         }
     }
 }
-void GOPPutPixel(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t color){
+static inline void GOPPutPixel(uint32_t x, uint32_t y, uint32_t pixel){
+    /*
     //check if x and y are legal
     uint32_t xMax = GOP->Info->HorizontalResolution;
     uint32_t yMax = GOP->Info->VerticalResolution;
@@ -1016,9 +1010,10 @@ void GOPPutPixel(EFI_GOP* GOP, uint32_t x, uint32_t y, uint32_t color){
         //ARGB 32-bit
         pixel = (b) | (g << 8) | (r << 16);
     }
+    
+    */
 
-    fb[y * pitch + x] = pixel;
-
+    global_ctx->fb[y * global_ctx->pitch + x] = pixel;
 }
 uint32_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a){
     return ((uint32_t)b) | ((uint32_t)g << 8) | ((uint32_t)r << 16) | ((uint32_t)a << 24);
@@ -1037,7 +1032,7 @@ void printd(char* str, ...){
     bool longType = false;
     while (*str) {
         if(*str != '%'){ //if not a format specifier
-            printChar(GOP, ConOut, *str++);
+            printChar(ConOut, *str++);
             continue;
         }
         str++; //skip the '%'
@@ -1046,7 +1041,7 @@ void printd(char* str, ...){
             break;
         }
         if(*str == '%'){
-            printChar(GOP, ConOut, '%');
+            printChar(ConOut, '%');
             str++;
             continue;
         }
@@ -1063,96 +1058,201 @@ void printd(char* str, ...){
         char format = *str; //character
         switch(format){
             case 'c': //char
-                printChar(GOP, ConOut, (uint8_t)va_arg(args, int32_t));
+                printChar(ConOut, (uint8_t)va_arg(args, int32_t));
                 break;
             case 's': //string
-                printString(GOP, ConOut, (char*)va_arg(args, uint8_t*));
+                printString(ConOut, (char*)va_arg(args, uint8_t*));
                 break;
 
             case 'd':
             case 'i': //signed int
                 if(longType){
-                    printInt(GOP, ConOut, (int64_t)va_arg(args, int64_t), 10);
+                    printInt(ConOut, (int64_t)va_arg(args, int64_t), 10);
                 }
                 else{
-                    printInt(GOP, ConOut, (int64_t)va_arg(args, int32_t), 10); 
+                    printInt(ConOut, (int64_t)va_arg(args, int32_t), 10); 
                 }
                 break;
             
             case 'u': //unsigned int
                 if(longType){
-                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint64_t), 10);
+                    printUint(ConOut, (uint64_t) va_arg(args, uint64_t), 10);
                 }
                 else{
-                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint32_t), 10);
+                    printUint(ConOut, (uint64_t) va_arg(args, uint32_t), 10);
                 }
                 break;
 
             case 'o': //octal
                 if(longType){
-                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint64_t), 8);
+                    printUint(ConOut, (uint64_t) va_arg(args, uint64_t), 8);
                 }
                 else{
-                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint32_t), 8);
+                    printUint(ConOut, (uint64_t) va_arg(args, uint32_t), 8);
                 }
                 break;
             case 'x': //hex
             case 'X': //hex
                 if(longType){
-                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint64_t), 16);
+                    printUint(ConOut, (uint64_t) va_arg(args, uint64_t), 16);
                 }
                 else{
-                    printUint(GOP, ConOut, (uint64_t) va_arg(args, uint32_t), 16);
+                    printUint(ConOut, (uint64_t) va_arg(args, uint32_t), 16);
                 }
                 break;
 
             case 'p': //pointer
-                printUint(GOP, ConOut, (uint64_t)va_arg(args, void*), 16);
+                printUint(ConOut, (uint64_t)va_arg(args, void*), 16);
                 break;
             
             case 'f': //float
                 if(longType){
-                    printFloat(GOP, ConOut, (double) va_arg(args, double), 16); 
+                    printFloat(ConOut, (double) va_arg(args, double), 16); 
                 }
                 else{
-                    printFloat(GOP, ConOut, (double) va_arg(args, double), 6);
+                    printFloat(ConOut, (double) va_arg(args, double), 6);
                 }
                 break;
             case 'l':
-                printChar(GOP, ConOut, 'l');
+                printChar(ConOut, 'l');
                 break;
             case 'n': //nothing
                 break;
             default:
                 //nuh uh, print the character itself
-                printChar(GOP, ConOut, '%');
-                printChar(GOP, ConOut, format);
+                printChar(ConOut, '%');
+                printChar(ConOut, format);
                 str--;
                 break;
         }
         str++;
     }
     va_end(args);
-    memcpy((void*)GOP->FrameBufferBase, (void*)global_ctx->fb, GOP->FrameBufferSize);    
+    update_framebuffer();
 }
 
+
+void mark_dirty_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h){
+    uint32_t tx0 = x / global_ctx->dirty_tile_size;
+    uint32_t ty0 = y / global_ctx->dirty_tile_size;
+
+    uint32_t tx1 = (x + w - 1) / TILE_W;
+    uint32_t ty1 = (y + h - 1) / TILE_H;
+
+    for (uint32_t ty = ty0; ty <= ty1; ty++)
+    for (uint32_t tx = tx0; tx <= tx1; tx++)
+    dirty[ty][tx] = 1;
+}
+
+
 //general functions
-void* memcpy(void* source, void* dest, uint64_t size){
-    uint8_t* d = (uint8_t*) dest;
-    uint8_t* s = (uint8_t*) source;
-    while (size >= 64 &&
-          ((uintptr_t)d % 64 == 0) &&
-          ((uintptr_t)s % 64 == 0)
-          ){
-        *(uint64_t*)d = *(uint64_t*)s;
-        d += 64;
-        s += 64;
-        size -= 64;
+void* kmemcpy(void* dest, const void* source, uint64_t size){
+    uint8_t* d = (uint8_t*)dest;
+    const uint8_t* s = (const uint8_t*)source;
+
+    // Align to 8 bytes first
+    while(size && ((uintptr_t)d & 7)){
+        *d++ = *s++;
+        size--;
     }
-    // Copy remaining bytes one by one
+
+    // Copy 8 bytes at a time
+    uint64_t* d64 = (uint64_t*)d;
+    const uint64_t* s64 = (const uint64_t*)s;
+
+    while (size >= 8) {
+        *d64++ = *s64++;
+        size -= 8;
+    }
+
+    d = (uint8_t*)d64;
+    s = (const uint8_t*)s64;
+
+    // Copy remainder
     while (size--) {
         *d++ = *s++;
     }
+
+    return dest;
+}
+void* kmemset(void* dest, int value, uint64_t size){
+    uint8_t* d = (uint8_t*)dest;
+    uint8_t byte = (uint8_t)value;
+
+    // Align to 8 bytes
+    while(size && ((uintptr_t)d & 7)){
+        *d++ = byte;
+        size--;
+    }
+
+    // Create 64-bit pattern
+    uint64_t pattern = byte;
+    pattern |= pattern << 8;
+    pattern |= pattern << 16;
+    pattern |= pattern << 32;
+
+    uint64_t* d64 = (uint64_t*)d;
+
+    while (size >= 8) {
+        *d64++ = pattern;
+        size -= 8;
+    }
+
+    d = (uint8_t*)d64;
+
+    while (size--) {
+        *d++ = byte;
+    }
+
+    return dest;
+}
+void kmemset32(uint32_t* dest, uint32_t value, uint64_t count){
+    while (count >= 8) {
+        dest[0] = value;
+        dest[1] = value;
+        dest[2] = value;
+        dest[3] = value;
+        dest[4] = value;
+        dest[5] = value;
+        dest[6] = value;
+        dest[7] = value;
+        dest += 8;
+        count -= 8;
+    }
+
+    while (count--) {
+        *dest++ = value;
+    }
+}
+int kmemcmp(const void* a, const void* b, uint64_t size){
+    const uint8_t* p1 = (const uint8_t*)a;
+    const uint8_t* p2 = (const uint8_t*)b;
+
+    while(size--){
+        if (*p1 != *p2)
+            return (*p1 < *p2) ? -1 : 1;
+        p1++;
+        p2++;
+    }
+
+    return 0;
+}
+void* kmemmove(void* dest, const void* source, uint64_t size){
+    uint8_t* d = (uint8_t*)dest;
+    const uint8_t* s = (const uint8_t*)source;
+
+    if(d < s){
+        // Forward copy
+        while (size--)
+            *d++ = *s++;
+    } else {
+        // Backward copy
+        d += size;
+        s += size;
+        while (size--)
+            *--d = *--s;
+    }
+
     return dest;
 }
 

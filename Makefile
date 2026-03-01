@@ -33,7 +33,7 @@ CFLAGS =\
 -fshort-wchar \
 -mno-red-zone \
 -maccumulate-outgoing-args \
--O3
+-O2
 
 LDFLAGS =\
 -shared \
@@ -70,12 +70,13 @@ KERNEL_CFLAGS =\
 -Wno-unused-variable \
 -ffreestanding \
 -fno-stack-protector \
+-fno-asynchronous-unwind-tables \
+-fno-unwind-tables \
 -fPIE \
--g \
 -m64 \
 -mno-red-zone \
 -Ignu-efi/inc \
--O3
+-O2
 
 KERNEL_LDFLAGS =\
 -T src/kernel.ld \
@@ -127,12 +128,24 @@ build:
 
 
 	#link kernel as ELF64 object
-	$(KERNEL_LD) $(KERNEL_LDFLAGS) \
-	-o build/kernel-full.o \
-	$(KERNEL_OBJS)
+	#$(KERNEL_LD) $(KERNEL_LDFLAGS) \
+	#-o build/kernel-full.o \
+	#$(KERNEL_OBJS)
+
+	#NEW: link kernel as ELF64 using gcc
+	$(KERNEL_CC) \
+    -nostdlib \
+    -T src/kernel.ld \
+    -pie \
+    -Wl,--emit-relocs \
+    -o build/kernel.elf \
+    $(KERNEL_OBJS)
+
+	#strip
+	strip build/kernel.elf
 
 	#objcopy to flat binary
-	$(KERNEL_OCP) $(KERNEL_OCPFLAGS) build/kernel-full.o build/kernel-full.bin
+	#$(KERNEL_OCP) $(KERNEL_OCPFLAGS) build/kernel-full.o build/kernel-full.bin
 
 # ------------------------------------------------------------
 
@@ -155,7 +168,7 @@ uramdisk:
 copy-to-usbroot:
 	cp build/nuckboot.efi usbroot/EFI/BOOT/BOOTX64.EFI
 	cp gnu-efi/Shell_Full.efi usbroot/EFI/BOOT/SHELLX64.EFI
-	cp build/kernel-full.bin usbroot/kernel.bin
+	cp build/kernel.elf usbroot/kernel.elf
 	cp data/out/*.nvideo usbroot/
 
 #copy files to device
