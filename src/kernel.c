@@ -18,11 +18,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     ctx->width = (uint32_t) ctx->GOP->Info->HorizontalResolution;
     ctx->height = (uint32_t) ctx->GOP->Info->VerticalResolution;
 
-
-    //clear screen
-    GOPDrawRect(0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
-    update_framebuffer();
-
     uint8_t CODE_SEG;
     uint8_t DATA_SEG;
 
@@ -38,14 +33,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
     KERNEL_TEXT_OUTPUT title = {Terminus8x16_Bold, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
     KERNEL_TEXT_OUTPUT ConOut = {Terminus8x16_Normal, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
- 
-    /*
-    for(int i=0;i<256;i++){
-        printf(&ConOut, "stub %lx: %lx\r\n", &isr_stub_0, (uint64_t)((uint64_t)isr_stub_0)+i*(((uint64_t)isr_stub_1)-(uint64_t)isr_stub_0));
-        update_framebuffer()
-    }
-    while(1);
-    */
 
     //NVIDEO RESOURCES
     KERNEL_NVIDEO bad_apple;
@@ -86,14 +73,18 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     int32_t pointerX = 0;
     int32_t pointerY = 0;
 
-    //print_memory_map(ctx, &ConOut);
+    //print_memory_map(&ConOut);
+
+
+    //static UI
+
+    //clear screen
+    GOPDrawRect(0, 0, ctx->width, ctx->height, hex(0x34e5eb), true);
 
     while(true){
         //display
         title = (KERNEL_TEXT_OUTPUT){Terminus8x16_Bold, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
         ConOut = (KERNEL_TEXT_OUTPUT){Terminus8x16_Normal, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
-        //clear screen
-        GOPDrawRect(0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, hex(0x34e5eb), true);
         
         /*
         bool fill = true;
@@ -105,8 +96,6 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         GOPDrawRect(0, 3*screenYFraction, screenX, 4*screenYFraction - 1, hex(0xF7A8B8), fill);
         GOPDrawRect(4*screenYFraction, screenX, 5*screenYFraction - 1, hex(0x55CDFC), fill);
         */
-        
-        printf(&ConOut, "(operating system of the future)\r\n");
         printf(&ConOut, "Display pixel format: %d\r\n", ctx->GOP->Info->PixelFormat);
         printf(&ConOut, "CPU Vendor: %s\r\n", &CPUVendor);
         printf(&ConOut, "Video resolution: %dx%d / format %d \r\n/ frame %d/%d\r\n", bad_apple.width, bad_apple.height, bad_apple.format, bad_apple.frameCounter+1, bad_apple.frameCount);
@@ -217,21 +206,75 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 }
 
 void update_framebuffer(){
+    bool debug = false;
+    if(debug){
+        uint8_t* dst = (uint8_t*)global_ctx->GOP->FrameBufferBase;
+        uint8_t* src = (uint8_t*)global_ctx->fb;
+
+        for(uint32_t ty=0;ty < global_ctx->dirty_tiles_y;ty++){
+            for(uint64_t tx=0;tx < global_ctx->dirty_tiles_x;tx++){
+                uint64_t i = ty * global_ctx->dirty_tiles_x + tx;
+                if(!global_ctx->dirty_tilemap[i]){
+                    continue;
+                }
+                uint64_t x = tx * global_ctx->dirty_tile_size;
+                uint64_t y = ty * global_ctx->dirty_tile_size;
+                uint64_t w = global_ctx->dirty_tile_size;
+                uint64_t h = global_ctx->dirty_tile_size;
+                //restrict
+                if(x+w > global_ctx->width){
+                    w = global_ctx->width - x;
+                }
+                if(y+h > global_ctx->height){
+                    h = global_ctx->height - y;
+                }
+
+                // Copy tile row by row
+                for(uint64_t row=0;row < h;row++){
+                    uint8_t* dst_row = dst + ((y + row) * global_ctx->pitch * 4) + (x * 4);
+                    kmemset32((uint32_t*)dst_row, hex(0xff0000), w);
+                }
+            
+            }
+        }
+
+    }
+
     uint8_t* dst = (uint8_t*)global_ctx->GOP->FrameBufferBase;
     uint8_t* src = (uint8_t*)global_ctx->fb;
 
-    uint64_t width  = global_ctx->GOP->Info->HorizontalResolution;
-    uint64_t height = global_ctx->GOP->Info->VerticalResolution;
-    uint64_t pitch  = global_ctx->GOP->Info->PixelsPerScanLine * 4; // 4 bytes per pixel (RGBA)
+    for(uint32_t ty=0;ty < global_ctx->dirty_tiles_y;ty++){
+        for(uint64_t tx=0;tx < global_ctx->dirty_tiles_x;tx++){
+            uint64_t i = ty * global_ctx->dirty_tiles_x + tx;
+            if(!global_ctx->dirty_tilemap[i]){
+                continue;
+            }
+            uint64_t x = tx * global_ctx->dirty_tile_size;
+            uint64_t y = ty * global_ctx->dirty_tile_size;
+            uint64_t w = global_ctx->dirty_tile_size;
+            uint64_t h = global_ctx->dirty_tile_size;
+            //restrict
+            if(x+w > global_ctx->width){
+                w = global_ctx->width - x;
+            }
+            if(y+h > global_ctx->height){
+                h = global_ctx->height - y;
+            }
+            
+            // Copy tile row by row
+            for(uint64_t row=0;row < h;row++){
+                uint8_t* dst_row = dst + ((y + row) * global_ctx->pitch * 4) + (x * 4);
+                uint8_t* src_row = src + ((y + row) * global_ctx->pitch * 4) + (x * 4);
 
-    uint64_t row_bytes = width * 4;
+                kmemcpy(dst_row, src_row, w*4);
+            }
 
-    for (uint64_t y = 0; y < height; y++) {
-        uint8_t* dst_row = dst + (y * pitch);
-        uint8_t* src_row = src + (y * row_bytes);
+            // Clear dirty flag
+            global_ctx->dirty_tilemap[i] = 0;
 
-        kmemcpy(dst_row, src_row, row_bytes);
+        }
     }
+
 }
 
 //NEW physical memory manager related functions
@@ -961,98 +1004,89 @@ void printChar(KERNEL_TEXT_OUTPUT* ConOut, char ascii_char){
         ConOut->cursorY = 0; //TODO: replace this line with scroll
     }
 }
-/*
-void GOPDrawRect(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color, uint8_t fill){
-    //convert x, y to memory address
-    uint32_t xmax = ((x1 > x2) ? x1 : x2);
-    uint32_t xmin = ((x1 > x2) ? x2 : x1);
-    uint32_t ymax = ((y1 > y2) ? y1 : y2);
-    uint32_t ymin = ((y1 > y2) ? y2 : y1);
-
-    if(!fill){
-        for(uint32_t x = xmin;x <= xmax;x++){
-            GOPPutPixel(x, ymin, color);
-            GOPPutPixel(x, ymax, color);
-        }
-        for(uint32_t y = ymin+1;y < ymax;y++){
-            GOPPutPixel(xmin, y, color);
-            GOPPutPixel(xmax, y, color);
-        }
-    }
-    else{
-        for(uint32_t y = ymin;y <= ymax;y++){
-            for(uint32_t x = xmin;x <= xmax;x++){
-                GOPPutPixel(x, y, color);
-            }
-        }
-    }
-}
-*/
 
 void GOPDrawRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t pixel, uint8_t fill){
-    if(fill){
-        if(x >= global_ctx->width || y >= global_ctx->height){
-            return;
-        }
-        if(x + w > global_ctx->width){
-            w = global_ctx->width - x;
-        }
-        if(y + h > global_ctx->height){
-            h = global_ctx->height - y;
-        }
+    if(x >= global_ctx->width || y >= global_ctx->height){
+        return;
+    }
+    if(w == 0 || h == 0){
+        return;
+    }
+    if(x + w > global_ctx->width){
+        w = global_ctx->width - x;
+    }
+    if(y + h > global_ctx->height){
+        h = global_ctx->height - y;
+    }
 
+    if(fill){
         for(uint32_t row=0;row<h;row++){
-            uint32_t* ptr = global_ctx->fb + (y + row) * global_ctx->pitch + x;
+            uint32_t* ptr = (uint32_t*)global_ctx->fb + (y + row) * global_ctx->pitch + x;
             kmemset32(ptr, pixel, w);
+        }
+        mark_dirty_rect(x, y, w, h);
+    }
+    else{
+        //top edge
+        uint32_t* top = (uint32_t*)global_ctx->fb + y * global_ctx->pitch + x;
+        kmemset32(top, pixel, w);
+        //bottom edge (only if height > 1)
+        if(h > 1){
+            uint32_t* bottom = (uint32_t*)global_ctx->fb + (y + h - 1) * global_ctx->pitch + x;
+            kmemset32(bottom, pixel, w);
+        }
+        //LR edges
+        for(uint32_t row=1;row < h-1;row++){
+            uint32_t* ptr = (uint32_t*)global_ctx->fb + (y + row) * global_ctx->pitch + x;
+            ptr[0] = pixel;
+            if(w > 1){
+                ptr[w - 1] = pixel;
+            }
         }
 
         mark_dirty_rect(x, y, w, h);
     }
-    else{//iio
-        if (x >= global_ctx->width || y >= global_ctx->height)
-            return;
+}
 
-        if (w == 0 || h == 0)
-            return;
+static inline void mark_dirty(uint32_t x, uint32_t y){
+    if(x >= global_ctx->width || y >= global_ctx->height){
+        return;
+    }
+    uint64_t tile_size = global_ctx->dirty_tile_size;
 
-        if (x + w > global_ctx->width)
-            w = global_ctx->width - x;
+    uint64_t tile_x = x / tile_size;
+    uint64_t tile_y = y / tile_size;
 
-        if (y + h > global_ctx->height)
-            h = global_ctx->height - y;
+    if(tile_x >= global_ctx->dirty_tiles_x || tile_y >= global_ctx->dirty_tiles_y){
+        return;
+    }
 
-        // Top edge
-        uint32_t* top =
-            global_ctx->fb +
-            y * global_ctx->pitch +
-            x;
+    global_ctx->dirty_tilemap[tile_y * global_ctx->dirty_tiles_x + tile_x] = 1;
+}
 
-        kmemset32(top, pixel, w);
+void mark_dirty_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h){
+    if(w == 0 || h == 0){
+        return;
+    }
+    uint64_t tile_size = global_ctx->dirty_tile_size;
 
-        // Bottom edge (only if height > 1)
-        if (h > 1) {
-            uint32_t* bottom =
-                global_ctx->fb +
-                (y + h - 1) * global_ctx->pitch +
-                x;
+    uint64_t tx0 = x / tile_size;
+    uint64_t ty0 = y / tile_size;
 
-            kmemset32(bottom, pixel, w);
+    uint64_t tx1 = (x + w - 1) / tile_size;
+    uint64_t ty1 = (y + h - 1) / tile_size;
+
+    if(tx1 >= global_ctx->dirty_tiles_x){
+        tx1 = global_ctx->dirty_tiles_x - 1;
+    }
+    if(ty1 >= global_ctx->dirty_tiles_y){
+        ty1 = global_ctx->dirty_tiles_y - 1;
+    }
+
+    for(uint64_t ty = ty0;ty<=ty1;ty++){
+        for(uint64_t tx = tx0;tx<=tx1;tx++){
+            global_ctx->dirty_tilemap[ty * global_ctx->dirty_tiles_x + tx] = 1;
         }
-
-        // Left & Right edges
-        for (uint32_t row = 1; row < h - 1; row++) {
-            uint32_t* ptr =
-                global_ctx->fb +
-                (y + row) * global_ctx->pitch +
-                x;
-
-            ptr[0] = pixel;
-
-            if (w > 1)
-                ptr[w - 1] = pixel;
-        }
-
-        mark_dirty_rect(x, y, w, h);
     }
 }
 
@@ -1086,7 +1120,8 @@ static inline void GOPPutPixel(uint32_t x, uint32_t y, uint32_t pixel){
     
     */
 
-    global_ctx->fb[y * global_ctx->pitch + x] = pixel;
+    *(uint32_t*)(global_ctx->fb + y * global_ctx->pitch * 4 + x * 4) = pixel;
+    mark_dirty(x, y);
 }
 uint32_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a){
     return ((uint32_t)b) | ((uint32_t)g << 8) | ((uint32_t)r << 16) | ((uint32_t)a << 24);

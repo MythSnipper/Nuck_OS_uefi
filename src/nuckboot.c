@@ -158,65 +158,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                         GOP_auto_select_native(&GOP, &GOP_info, &GOP_info_size, &GOP_selected_mode);
 
                         //Boot Nuck OS
-                        //kernel PMM stuff
-                        get_memory_map(&memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
-                        get_memory_map_highest_address(memory_map_size, memory_map, memory_map_descriptor_size, &highest_usable_range_addr);
-
-                        //allocate memory for kernel PMM range
-                        uint32_t heap_size_pages = highest_usable_range_addr/4096;
-                        uint32_t heap_bitmap_size_bytes = (heap_size_pages+7)/8; //1 byte = 8 pages, round up
-                        uint32_t heap_bitmap_size_pages = (heap_bitmap_size_bytes + 4095)/4096; //1 page = 4096 bytes, round up
-                        kernel_pmm_bitmap_size = heap_bitmap_size_pages;
-
-                        status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, heap_bitmap_size_pages, &kernel_pmm_bitmap_addr); //allocate pages for pmm bitmap
-                        if(EFI_ERROR(status)){
-                            Print(L"Can't allocate %d pages for pmm bitmap\r\n", heap_size_pages);
-                            while(1);
-                        }
-                        Print(L"pmm bitmap allocated at address %lx!\r\nheap size: %d, heap bitmap size: %d bytes %d pages\r\n", kernel_pmm_bitmap_addr, heap_size_pages, heap_bitmap_size_bytes, heap_bitmap_size_pages);
-
-                        get_memory_map(&memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
-
-                        Print(L"Press any key to continue...\r\n");
-                        while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
-
-                        //GOP info
-                        uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP_selected_mode, &GOP_info_size, &GOP_info);
-                        if(EFI_ERROR(status)) crashout(L"Can't query GOP mode in QueryMode", status);
                         
-                        //Set new GOP mode
-                        status = uefi_call_wrapper(GOP->SetMode, 2, GOP, GOP_selected_mode);
-                        if(EFI_ERROR(status)) crashout(L"Unable to get GOP mode in SetMode", status);
-                        Print(L"New resolution: %dx%d!\r\n", GOP->Mode->Info->HorizontalResolution, GOP->Mode->Info->VerticalResolution);
-
-                        //allocate memory for backbuffer
-                        status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderData, GOP->Mode->FrameBufferSize, &backbuffer);
-                        if(EFI_ERROR(status)){
-                            Print(L"Can't allocate %ld bytes for video backbuffer\r\n", GOP->Mode->FrameBufferSize);
-                            while(1);
-                        }
-                        Print(L"Backbuffer: %ld bytes at %lx\r\n", GOP->Mode->FrameBufferSize, backbuffer);
-
-                        
-                        dirty_tiles_size(GOP->Mode->Info->HorizontalResolution, GOP->Mode->Info->VerticalResolution, &tile_size);
-                        
-                        tiles_x = (GOP->Mode->Info->HorizontalResolution+tile_size-1)/tile_size;
-                        tiles_y = (GOP->Mode->Info->VerticalResolution+tile_size-1)/tile_size;
-
-                        uint64_t total_tiles = tiles_x * tiles_y;
-                        //allocate dirty tiles map
-                        uint64_t tilemap_size_pages = (total_tiles+0xFFF) / 0x1000;
-                        status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, tilemap_size_pages, &tilemap_addr); //allocate pages for pmm bitmap
-                        if(EFI_ERROR(status)){
-                            Print(L"Can't allocate %d pages for dirty tiles map\r\n", tilemap_size_pages);
-                            while(1);
-                        }
-                        Print(L"dirty tiles map allocated at address %lx!\r\n[%dx%d] tiles with tile size %dx%d(%d bytes %d pages)\r\n", tilemap_addr, tiles_x, tiles_y, tile_size, tile_size, total_tiles, tilemap_size_pages);
-
-                        Print(L"Press any key to continue...\r\n");
-                        while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
-
-                        goto exit_boot_services;
+                        goto exit_boot;
                         break;
                     }
                     case 1: {
@@ -241,65 +184,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
                     }
                     case 5: {
                         //Boot Nuck OS
-                        //kernel PMM stuff
-                        get_memory_map(&memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
-                        get_memory_map_highest_address(memory_map_size, memory_map, memory_map_descriptor_size, &highest_usable_range_addr);
-
-                        //allocate memory for kernel PMM range
-                        uint32_t heap_size_pages = highest_usable_range_addr/4096;
-                        uint32_t heap_bitmap_size_bytes = (heap_size_pages+7)/8; //1 byte = 8 pages, round up
-                        uint32_t heap_bitmap_size_pages = (heap_bitmap_size_bytes + 4095)/4096; //1 page = 4096 bytes, round up
-                        kernel_pmm_bitmap_size = heap_bitmap_size_pages;
-
-                        status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, heap_bitmap_size_pages, &kernel_pmm_bitmap_addr); //allocate pages for pmm bitmap
-                        if(EFI_ERROR(status)){
-                            Print(L"Can't allocate %d pages for pmm bitmap\r\n", heap_size_pages);
-                            while(1);
-                        }
-                        Print(L"pmm bitmap allocated at address %lx!\r\nheap size: %d, heap bitmap size: %d bytes %d pages\r\n", kernel_pmm_bitmap_addr, heap_size_pages, heap_bitmap_size_bytes, heap_bitmap_size_pages);
-
-                        get_memory_map(&memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
-
-                        Print(L"Press any key to continue...\r\n");
-                        while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
-
-                        //GOP info
-                        uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP_selected_mode, &GOP_info_size, &GOP_info);
-                        if(EFI_ERROR(status)) crashout(L"Can't query GOP mode in QueryMode", status);
                         
-                        //Set new GOP mode
-                        status = uefi_call_wrapper(GOP->SetMode, 2, GOP, GOP_selected_mode);
-                        if(EFI_ERROR(status)) crashout(L"Unable to get GOP mode in SetMode", status);
-                        Print(L"New resolution: %dx%d!\r\n", GOP->Mode->Info->HorizontalResolution, GOP->Mode->Info->VerticalResolution);
-
-                        //allocate memory for backbuffer
-                        uint64_t framebuffer_size_pages = (GOP->Mode->FrameBufferSize+0xFFF)/0x1000;
-                        status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, framebuffer_size_pages, &backbuffer);
-                        if(EFI_ERROR(status)){
-                            Print(L"Can't allocate %ld bytes for video backbuffer\r\n", framebuffer_size_pages);
-                            while(1);
-                        }
-                        Print(L"Backbuffer: %d bytes/%d pages at %lx\r\n", GOP->Mode->FrameBufferSize, framebuffer_size_pages, backbuffer);
-                        
-                        dirty_tiles_size(GOP->Mode->Info->HorizontalResolution, GOP->Mode->Info->VerticalResolution, &tile_size);
-                        
-                        tiles_x = (GOP->Mode->Info->HorizontalResolution+tile_size-1)/tile_size;
-                        tiles_y = (GOP->Mode->Info->VerticalResolution+tile_size-1)/tile_size;
-
-                        uint64_t total_tiles = tiles_x * tiles_y;
-                        //allocate dirty tiles map
-                        uint64_t tilemap_size_pages = (total_tiles+0xFFF) / 0x1000;
-                        status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, tilemap_size_pages, &tilemap_addr); //allocate pages for pmm bitmap
-                        if(EFI_ERROR(status)){
-                            Print(L"Can't allocate %d pages for dirty tiles map\r\n", tilemap_size_pages);
-                            while(1);
-                        }
-                        Print(L"dirty tiles map allocated at address %lx!\r\n[%dx%d] tiles with tile size %dx%d(%d bytes %d pages)\r\n", tilemap_addr, tiles_x, tiles_y, tile_size, tile_size, total_tiles, tilemap_size_pages);
-
-                        Print(L"Press any key to continue...\r\n");
-                        while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
-
-                        goto exit_boot_services;
+                        goto exit_boot;
                         break;
                     }
                     case 6: {
@@ -359,7 +245,68 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
             }
         }
     }
-    exit_boot_services:
+    exit_boot:
+
+    //kernel PMM stuff
+    get_memory_map(&memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
+    get_memory_map_highest_address(memory_map_size, memory_map, memory_map_descriptor_size, &highest_usable_range_addr);
+
+    //allocate memory for kernel PMM range
+    uint32_t heap_size_pages = highest_usable_range_addr/4096;
+    uint32_t heap_bitmap_size_bytes = (heap_size_pages+7)/8; //1 byte = 8 pages, round up
+    uint32_t heap_bitmap_size_pages = (heap_bitmap_size_bytes + 4095)/4096; //1 page = 4096 bytes, round up
+    kernel_pmm_bitmap_size = heap_bitmap_size_pages;
+
+    status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, heap_bitmap_size_pages, &kernel_pmm_bitmap_addr); //allocate pages for pmm bitmap
+    if(EFI_ERROR(status)){
+        Print(L"Can't allocate %d pages for pmm bitmap\r\n", heap_size_pages);
+        while(1);
+    }
+    Print(L"pmm bitmap allocated at address %lx!\r\nheap size: %d, heap bitmap size: %d bytes %d pages\r\n", kernel_pmm_bitmap_addr, heap_size_pages, heap_bitmap_size_bytes, heap_bitmap_size_pages);
+
+    get_memory_map(&memory_map_size, &memory_map_size_pages, &memory_map, &memory_map_key, &memory_map_descriptor_size, &memory_map_descriptor_version);
+
+    Print(L"Press any key to continue...\r\n");
+    while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
+
+    //GOP info
+    uefi_call_wrapper(GOP->QueryMode, 4, GOP, GOP_selected_mode, &GOP_info_size, &GOP_info);
+    if(EFI_ERROR(status)) crashout(L"Can't query GOP mode in QueryMode", status);
+
+    //Set new GOP mode
+    status = uefi_call_wrapper(GOP->SetMode, 2, GOP, GOP_selected_mode);
+    if(EFI_ERROR(status)) crashout(L"Unable to get GOP mode in SetMode", status);
+    Print(L"New resolution: %dx%d!\r\n", GOP->Mode->Info->HorizontalResolution, GOP->Mode->Info->VerticalResolution);
+
+    //allocate memory for backbuffer
+    uint64_t framebuffer_size_pages = (GOP->Mode->FrameBufferSize+0xFFF)/0x1000;
+    status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, framebuffer_size_pages, &backbuffer);
+    if(EFI_ERROR(status)){
+        Print(L"Can't allocate %ld bytes for video backbuffer\r\n", framebuffer_size_pages);
+        while(1);
+    }
+    Print(L"Backbuffer: %d bytes/%d pages at %lx\r\n", GOP->Mode->FrameBufferSize, framebuffer_size_pages, backbuffer);
+
+    dirty_tiles_size(GOP->Mode->Info->HorizontalResolution, GOP->Mode->Info->VerticalResolution, &tile_size);
+
+    tiles_x = (GOP->Mode->Info->HorizontalResolution+tile_size-1)/tile_size;
+    tiles_y = (GOP->Mode->Info->VerticalResolution+tile_size-1)/tile_size;
+
+    uint64_t total_tiles = tiles_x * tiles_y;
+    //allocate dirty tiles map
+    uint64_t tilemap_size_pages = (total_tiles+0xFFF) / 0x1000;
+    status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, tilemap_size_pages, &tilemap_addr); //allocate pages for pmm bitmap
+    if(EFI_ERROR(status)){
+        Print(L"Can't allocate %d pages for dirty tiles map\r\n", tilemap_size_pages);
+        while(1);
+    }
+    Print(L"dirty tiles map allocated at address %lx!\r\n[%dx%d] tiles with tile size %dx%d(%d bytes %d pages)\r\n", tilemap_addr, tiles_x, tiles_y, tile_size, tile_size, total_tiles, tilemap_size_pages);
+
+    //zero initialize the map
+    kmemset((void*)tilemap_addr, 0, tilemap_size_pages*0x1000);
+
+    Print(L"Press any key to continue...\r\n");
+    while(uefi_call_wrapper(ST->ConIn->ReadKeyStroke,  2, ST->ConIn, &key) != EFI_SUCCESS);
 
     //construct kernel main function to call
     typedef void (*Kernel_entry)(KERNEL_CONTEXT_TABLE*);
@@ -392,7 +339,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     ctx->GOP = GOP->Mode;
     ctx->fb = (uint32_t*)backbuffer;
 
-    ctx->dirty_tilemap_addr = tilemap_addr;
+    ctx->dirty_tilemap = (uint8_t*)tilemap_addr;
     ctx->dirty_tiles_x = tiles_x;
     ctx->dirty_tiles_y = tiles_y;
     ctx->dirty_tile_size = tile_size;
@@ -854,7 +801,7 @@ EFI_PHYSICAL_ADDRESS load_kernel_elf(EFI_FILE_PROTOCOL* root, wchar_t* filename,
 
 
     //deallocate elf_buffer
-    status = uefi_call_wrapper(BS->FreePool, 1, &elf_buffer);
+    status = uefi_call_wrapper(BS->FreePool, 1, elf_buffer);
     if(EFI_ERROR(status)) crashout(L"Cannot free pool in func load_kernel_elf, FreePool", status);
 
 
@@ -1213,8 +1160,7 @@ void triple_fault(){
 }
 
 //string functions implemented
-int kmemcmp(const void* a, const void* b, unsigned long n)
-{
+int kmemcmp(const void* a, const void* b, unsigned long n){
     const unsigned char* p1 = (const unsigned char*)a;
     const unsigned char* p2 = (const unsigned char*)b;
 
@@ -1225,8 +1171,7 @@ int kmemcmp(const void* a, const void* b, unsigned long n)
 
     return 0;
 }
-void* kmemcpy(void* dest, const void* src, unsigned long n)
-{
+void* kmemcpy(void* dest, const void* src, unsigned long n){
     unsigned char* d = (unsigned char*)dest;
     const unsigned char* s = (const unsigned char*)src;
 
@@ -1235,11 +1180,10 @@ void* kmemcpy(void* dest, const void* src, unsigned long n)
 
     return dest;
 }
-void* kmemset(void* dest, int value, unsigned long n)
-{
+void* kmemset(void* dest, int value, unsigned long n){
     unsigned char* d = (unsigned char*)dest;
 
-    for (unsigned long i = 0; i < n; i++)
+    for(unsigned long i = 0; i < n; i++)
         d[i] = (unsigned char)value;
 
     return dest;

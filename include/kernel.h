@@ -52,13 +52,13 @@ typedef struct{
     uint32_t                           ConfigTableEntriesCount;
 
     EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* GOP; //frontbuffer in here
-    uint32_t*                          fb; //backbuffer
+    uint8_t*                          fb; //backbuffer
     //values unset by bootloader are indented
         uint32_t pitch;
         uint32_t width;
         uint32_t height;
 
-    EFI_PHYSICAL_ADDRESS               dirty_tilemap_addr; //map
+    uint8_t*                           dirty_tilemap; //map
     uint64_t                           dirty_tiles_x; //number of tiles horizontal
     uint64_t                           dirty_tiles_y; //number of tiles vertical
     uint64_t                           dirty_tile_size; //size of tile
@@ -132,7 +132,9 @@ void printInt(KERNEL_TEXT_OUTPUT* ConOut, int64_t num, uint8_t base);
 void printUint(KERNEL_TEXT_OUTPUT* ConOut, uint64_t num, uint8_t base);
 void printString(KERNEL_TEXT_OUTPUT* ConOut, char* string);
 void printChar(KERNEL_TEXT_OUTPUT* ConOut, char ascii_char);
-void GOPDrawRect(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color, uint8_t fill);
+void GOPDrawRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t pixel, uint8_t fill);
+static inline void mark_dirty(uint32_t x, uint32_t y);
+void mark_dirty_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
 static inline void GOPPutPixel(uint32_t x, uint32_t y, uint32_t pixel);
 void printd(char* str, ...);
 
