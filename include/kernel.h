@@ -55,7 +55,8 @@ typedef struct{
     uint32_t*                          fb; //backbuffer
     //values unset by bootloader are indented
         uint32_t pitch;
-
+        uint32_t width;
+        uint32_t height;
 
     EFI_PHYSICAL_ADDRESS               dirty_tilemap_addr; //map
     uint64_t                           dirty_tiles_x; //number of tiles horizontal

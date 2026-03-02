@@ -15,6 +15,9 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
     //fill in some ctx values
     ctx->pitch = (uint32_t) ctx->GOP->Info->PixelsPerScanLine;
+    ctx->width = (uint32_t) ctx->GOP->Info->HorizontalResolution;
+    ctx->height = (uint32_t) ctx->GOP->Info->VerticalResolution;
+
 
     //clear screen
     GOPDrawRect(0, 0, ctx->GOP->Info->HorizontalResolution-1, ctx->GOP->Info->VerticalResolution-1, rgba(0, 0, 0, 0), true);
@@ -958,6 +961,7 @@ void printChar(KERNEL_TEXT_OUTPUT* ConOut, char ascii_char){
         ConOut->cursorY = 0; //TODO: replace this line with scroll
     }
 }
+/*
 void GOPDrawRect(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color, uint8_t fill){
     //convert x, y to memory address
     uint32_t xmax = ((x1 > x2) ? x1 : x2);
@@ -983,7 +987,74 @@ void GOPDrawRect(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t co
         }
     }
 }
+*/
 
+void GOPDrawRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t pixel, uint8_t fill){
+    if(fill){
+        if(x >= global_ctx->width || y >= global_ctx->height){
+            return;
+        }
+        if(x + w > global_ctx->width){
+            w = global_ctx->width - x;
+        }
+        if(y + h > global_ctx->height){
+            h = global_ctx->height - y;
+        }
+
+        for(uint32_t row=0;row<h;row++){
+            uint32_t* ptr = global_ctx->fb + (y + row) * global_ctx->pitch + x;
+            kmemset32(ptr, pixel, w);
+        }
+
+        mark_dirty_rect(x, y, w, h);
+    }
+    else{//iio
+        if (x >= global_ctx->width || y >= global_ctx->height)
+            return;
+
+        if (w == 0 || h == 0)
+            return;
+
+        if (x + w > global_ctx->width)
+            w = global_ctx->width - x;
+
+        if (y + h > global_ctx->height)
+            h = global_ctx->height - y;
+
+        // Top edge
+        uint32_t* top =
+            global_ctx->fb +
+            y * global_ctx->pitch +
+            x;
+
+        kmemset32(top, pixel, w);
+
+        // Bottom edge (only if height > 1)
+        if (h > 1) {
+            uint32_t* bottom =
+                global_ctx->fb +
+                (y + h - 1) * global_ctx->pitch +
+                x;
+
+            kmemset32(bottom, pixel, w);
+        }
+
+        // Left & Right edges
+        for (uint32_t row = 1; row < h - 1; row++) {
+            uint32_t* ptr =
+                global_ctx->fb +
+                (y + row) * global_ctx->pitch +
+                x;
+
+            ptr[0] = pixel;
+
+            if (w > 1)
+                ptr[w - 1] = pixel;
+        }
+
+        mark_dirty_rect(x, y, w, h);
+    }
+}
 
 static inline void GOPPutPixel(uint32_t x, uint32_t y, uint32_t pixel){
     /*
