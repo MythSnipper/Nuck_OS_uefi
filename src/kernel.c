@@ -207,6 +207,8 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
 void update_framebuffer(){
     bool debug = false;
+    bool debug2 = true;
+
     if(debug){
         uint8_t* dst = (uint8_t*)global_ctx->GOP->FrameBufferBase;
         uint8_t* src = (uint8_t*)global_ctx->fb;
@@ -237,7 +239,10 @@ void update_framebuffer(){
             
             }
         }
-
+        volatile uint64_t hang = 0;
+        for(uint64_t i=0;i<30000000;i++){
+            hang+=i;
+        }
     }
 
     uint8_t* dst = (uint8_t*)global_ctx->GOP->FrameBufferBase;
@@ -260,7 +265,19 @@ void update_framebuffer(){
             if(y+h > global_ctx->height){
                 h = global_ctx->height - y;
             }
-            
+            if(debug2){
+                // Copy tile row by row
+                for(uint64_t row=0;row < h;row++){
+                    uint8_t* dst_row = dst + ((y + row) * global_ctx->pitch * 4) + (x * 4);
+                    kmemset32((uint32_t*)dst_row, hex(0xff0000), w);
+                }
+
+                volatile uint64_t hang = 0;
+                for(uint64_t i=0;i<4000000;i++){
+                    hang+=i;
+                }
+            }
+
             // Copy tile row by row
             for(uint64_t row=0;row < h;row++){
                 uint8_t* dst_row = dst + ((y + row) * global_ctx->pitch * 4) + (x * 4);
@@ -272,6 +289,13 @@ void update_framebuffer(){
             // Clear dirty flag
             global_ctx->dirty_tilemap[i] = 0;
 
+        }
+    }
+
+    if(debug){
+        volatile uint64_t hang = 0;
+        for(uint64_t i=0;i<30000000;i++){
+            hang+=i;
         }
     }
 
