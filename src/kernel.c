@@ -79,9 +79,16 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
     //static UI
 
     //clear screen
-    GOPDrawRect(0, 0, ctx->width, ctx->height, hex(0x34e5eb), true);
+    //GOPDrawRect(0, 0, ctx->width, ctx->height, hex(0x34e5eb), true);
+    GOPDrawRect(0, 0, ctx->width, ctx->height, hex(0x000000), true);
+
+    bool clscr = false;
 
     while(true){
+        if(clscr){
+            clscr = false;
+            GOPDrawRect(0, 0, ctx->width, ctx->height, hex(0x000000), true);
+        }
         //display
         title = (KERNEL_TEXT_OUTPUT){Terminus8x16_Bold, 8, 16, 2, 2, 0, 0, 20, 20, hex(0xFF10F0), hex(0x000000), true};
         ConOut = (KERNEL_TEXT_OUTPUT){Terminus8x16_Normal, 8, 16, 1, 1, 0, 8, 0, 0, hex(0xFF10F0), hex(0x000000), false};
@@ -133,7 +140,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
         //GOPDrawImage(ctx->GOP->Info->HorizontalResolution - nuckos_logo.width - 10, ctx->GOP->Info->VerticalResolution - nuckos_logo.height - 10, &nuckos_logo);
 
         //PS/2 input
-        /*
+        
         uint8_t is_mouse = PS2_poll(&scancode, &dx, &dy, &lrm);
         
         if(!is_mouse){ //keyboard
@@ -144,6 +151,10 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
                 printf(&ConOut, "MAKE\r\n");
             }
             printf(&ConOut, ":%x\r\n", scancode);
+
+            if(scancode == 0x39){
+                clscr = true;
+            }
         }
         else{ //mouse
             if(mouseInitError){
@@ -167,10 +178,9 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
                 if(pointerY > (int32_t)(ctx->GOP->Info->VerticalResolution-1))pointerY = ctx->GOP->Info->VerticalResolution-1;
             }
         }
-        */
 
         //pointer icon
-        //GOPDrawImage(pointerX, pointerY, &pointer_icon);
+        GOPDrawImage(pointerX, pointerY, &pointer_icon);
 
         GOPPlayVideo(ctx->GOP->Info->HorizontalResolution - bad_apple.width, 0, &bad_apple, true);
 
@@ -207,7 +217,7 @@ void kernel_main(KERNEL_CONTEXT_TABLE* ctx){
 
 void update_framebuffer(){
     bool debug = false;
-    bool debug2 = true;
+    bool debug2 = false;
 
     if(debug){
         uint8_t* dst = (uint8_t*)global_ctx->GOP->FrameBufferBase;
@@ -541,7 +551,6 @@ static inline void PIC_disable(){
     outb(0x21, 0xff); //mask master PIC
     outb(0xA1, 0xff); //mask slave PIC
 }
-
 
 /*
 //dynamic memory allocation functions
