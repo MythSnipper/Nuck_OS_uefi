@@ -4,3 +4,4 @@ mnt/
 usbroot/
 data/out/
 data/pre-convert/
+scripts/convert-nvideo/target
